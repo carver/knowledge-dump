@@ -172,6 +172,7 @@ def test_unreachable_host_is_a_quiet_skip(tmp_path: Path) -> None:
     logs: list[str] = []
     assert run(clone, FakeModel(), no_sparks, logs.append)
     assert logs and "vault unreachable" in logs[0]
+    assert "\n" not in logs[0]
 
 
 def test_broken_spark_source_does_not_stop_triage(host_vault: tuple[Path, str], tmp_path: Path) -> None:

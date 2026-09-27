@@ -25,6 +25,15 @@ class Unreachable(RuntimeError):
     """The host's git daemon didn't answer, e.g. because the laptop is asleep."""
 
 
+def _one_line(stderr: str) -> str:
+    """git's error on one line, without its generic advice, so each skipped run is one log line."""
+    advice = ("Please make sure you have the correct access rights", "and the repository exists.")
+    lines = [
+        line.strip() for line in stderr.splitlines() if line.strip() and not line.strip().startswith(advice)
+    ]
+    return " ".join(lines) or "no error message"
+
+
 class VaultClone:
     def __init__(self, path: Path, remote: str) -> None:
         self.path = path
@@ -53,12 +62,12 @@ class VaultClone:
             timeout=120,
         )
         if result.returncode != 0:
-            raise Unreachable(f"can't clone {self.remote}: {result.stderr.strip()}")
+            raise Unreachable(f"can't clone {self.remote}: {_one_line(result.stderr)}")
 
     def fetch(self) -> None:
         result = self._git("fetch", "-q", "--prune", "origin", check=False)
         if result.returncode != 0:
-            raise Unreachable(f"can't fetch {self.remote}: {result.stderr.strip()}")
+            raise Unreachable(f"can't fetch {self.remote}: {_one_line(result.stderr)}")
 
     def reset_to_main(self) -> None:
         """Throw away local work and start from the host's main."""
@@ -78,7 +87,7 @@ class VaultClone:
         head = self._git("rev-parse", "HEAD").stdout.strip()
         result = self._git("push", "-q", "--force", "origin", f"HEAD:refs/heads/{AGENT_BRANCH}", check=False)
         if result.returncode != 0:
-            raise Unreachable(f"push failed: {result.stderr.strip()}")
+            raise Unreachable(f"push failed: {_one_line(result.stderr)}")
         return head
 
     def merged(self, commit: str) -> bool:

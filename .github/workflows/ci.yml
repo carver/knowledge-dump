@@ -1,0 +1,36 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          path: knowledge-dump
+      # The Spark tests read tab-squasher's reader and fixtures from a sibling checkout.
+      - uses: actions/checkout@v5
+        with:
+          repository: carver/tab-squasher
+          path: tab-squasher
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+      - name: dev install from scratch, the way the README says
+        working-directory: knowledge-dump
+        run: |
+          python3 -m venv venv
+          venv/bin/pip install -e '.[dev]'
+      - name: lint, types and every test, including the slow ones
+        working-directory: knowledge-dump
+        env:
+          TAB_SQUASHER_DIR: ${{ github.workspace }}/tab-squasher
+        run: |
+          venv/bin/python -m ruff check .
+          venv/bin/python -m ruff format --check .
+          venv/bin/python -m mypy
+          venv/bin/python -m pytest

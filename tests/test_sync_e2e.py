@@ -19,6 +19,9 @@ from kd.triage import NewPage
 
 HOST_SCRIPT = Path(kd_host.__file__)
 
+# About 5s in all, too slow for the pre-commit hook; CI runs them.
+pytestmark = pytest.mark.slow
+
 
 def free_port() -> int:
     with socket.socket() as s:

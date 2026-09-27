@@ -22,6 +22,7 @@ kd = ["triage-prompt.md"]
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 addopts = "-q"
+markers = ["slow: end-to-end tests against a real git daemon; CI runs them, the pre-commit hook skips them"]
 
 [tool.ruff]
 line-length = 110

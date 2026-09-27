@@ -63,7 +63,7 @@ python3 -m pytest          # includes an end-to-end test against a real git daem
 python3 -m ruff check . && python3 -m ruff format --check . && python3 -m mypy
 ```
 
-The pre-commit hook in `.githooks` runs all of these on the staged files, with whatever `python3` is on `PATH`. The sandbox has the tools installed system-wide. On the host, make a venv once (`python3 -m venv venv && venv/bin/pip install -e '.[dev]'`) and activate it before committing. `host/` must stay standard-library only, since it runs on the host's system Python.
+The pre-commit hook in `.githooks` runs these on the staged files in under 5 seconds, skipping the tests marked `slow` (the git daemon end-to-end ones). It uses whatever `python3` is on `PATH`. CI (`.github/workflows/ci.yml`) installs from scratch into a fresh venv and runs everything; it needs a GitHub remote to run. The sandbox has the tools installed system-wide. On the host, make a venv once (`python3 -m venv venv && venv/bin/pip install -e '.[dev]'`) and activate it before committing. `host/` must stay standard-library only, since it runs on the host's system Python.
 
 ## Privacy
 

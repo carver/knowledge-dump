@@ -1,8 +1,10 @@
 #!/bin/sh
-# Lint, type-check and test what's staged. Enabled by install_sandbox.py (core.hooksPath).
+# Lint, type-check and run the fast tests on what's staged, in under 5s. CI runs the rest.
+# Enabled by install_sandbox.py (core.hooksPath).
 # On the host, activate the venv with the dev tools (pip install -e '.[dev]') first.
 set -e
-cd "$(git rev-parse --show-toplevel)"
+top=$(git rev-parse --show-toplevel)
+cd "$top"
 # The copy below lives in /tmp, away from the sibling checkout the Spark tests read.
 TAB_SQUASHER_DIR=${TAB_SQUASHER_DIR:-$(cd ../tab-squasher && pwd)}
 export TAB_SQUASHER_DIR
@@ -14,4 +16,4 @@ cd "$tree"
 python3 -m ruff check --quiet .
 python3 -m ruff format --check --quiet .
 python3 -m mypy --no-error-summary
-python3 -m pytest -q -p no:cacheprovider
+python3 -m pytest -q -p no:cacheprovider -m "not slow"

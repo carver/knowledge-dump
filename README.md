@@ -63,7 +63,7 @@ python3 -m pytest          # includes an end-to-end test against a real git daem
 python3 -m ruff check . && python3 -m ruff format --check . && python3 -m mypy
 ```
 
-The pre-commit hook in `.githooks` runs all of these on the staged files. `host/` must stay standard-library only, since it runs on the host's system Python.
+The pre-commit hook in `.githooks` runs all of these on the staged files, with whatever `python3` is on `PATH`. The sandbox has the tools installed system-wide. On the host, make a venv once (`python3 -m venv venv && venv/bin/pip install -e '.[dev]'`) and activate it before committing. `host/` must stay standard-library only, since it runs on the host's system Python.
 
 ## Privacy
 

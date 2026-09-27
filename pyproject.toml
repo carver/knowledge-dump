@@ -1,3 +1,7 @@
+[build-system]
+requires = ["setuptools>=69"]
+build-backend = "setuptools.build_meta"
+
 [project]
 name = "knowledge-dump"
 version = "0.1.0"
@@ -7,6 +11,13 @@ dependencies = ["jsonschema", "regress"]
 
 [project.optional-dependencies]
 dev = ["pytest", "hypothesis", "ruff", "mypy"]
+
+[tool.setuptools]
+# host/ holds standalone scripts run with the host's system Python, not a package.
+packages = ["kd"]
+
+[tool.setuptools.package-data]
+kd = ["triage-prompt.md"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

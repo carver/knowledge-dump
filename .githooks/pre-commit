@@ -1,5 +1,6 @@
 #!/bin/sh
 # Lint, type-check and test what's staged. Enabled by install_sandbox.py (core.hooksPath).
+# On the host, activate the venv with the dev tools (pip install -e '.[dev]') first.
 set -e
 cd "$(git rev-parse --show-toplevel)"
 # The copy below lives in /tmp, away from the sibling checkout the Spark tests read.

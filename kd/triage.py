@@ -1,0 +1,145 @@
+"""One triage pass over a checked-out vault. No git here; see kd/run.py for that.
+
+A pass:
+1. adds new Sparks to the Inbox as pages,
+2. reads the Triage page: applies ticked proposals, parks items whose proposal was deleted,
+3. asks the model about Inbox items with no proposal yet,
+4. rewrites the Triage page and the state file.
+"""
+
+import subprocess
+from dataclasses import dataclass, field
+from pathlib import Path
+
+from kd import triage_page
+from kd.pages import TRIAGE, linkable, page_path
+from kd.propose import Model, ModelError, propose
+from kd.state import Proposal, State, load, state_path
+from kd.vault import (
+    InboxItem,
+    append_to_page,
+    content_pages,
+    inbox_items,
+    remove_inbox_page,
+    write_if_changed,
+)
+
+
+@dataclass(frozen=True)
+class NewPage:
+    """A page to add to the Inbox, like one made from a Spark."""
+
+    source_id: str
+    page: str
+    text: str
+
+
+@dataclass
+class Report:
+    imported: list[str] = field(default_factory=list)
+    applied: list[str] = field(default_factory=list)
+    parked: list[str] = field(default_factory=list)
+    dropped: list[str] = field(default_factory=list)
+    proposed: list[str] = field(default_factory=list)
+    problems: list[str] = field(default_factory=list)
+
+    def lines(self) -> list[str]:
+        labels = [
+            ("imported Spark", self.imported),
+            ("applied", self.applied),
+            ("parked (proposal deleted)", self.parked),
+            ("dropped (item changed or gone)", self.dropped),
+            ("proposed", self.proposed),
+            ("problem", self.problems),
+        ]
+        return [f"{label}: {entry}" for label, entries in labels for entry in entries]
+
+
+def _import_pages(vault: Path, state: State, new_pages: list[NewPage], report: Report) -> None:
+    done = set(state.imported_sparks)
+    for new in new_pages:
+        if new.source_id in done:
+            continue
+        name, n = new.page, 1
+        while page_path(vault, name).exists():
+            n += 1
+            name = f"{new.page} ({n})"
+        write_if_changed(page_path(vault, name), new.text)
+        state.imported_sparks.append(new.source_id)
+        done.add(new.source_id)
+        report.imported.append(name)
+
+
+def _apply(vault: Path, proposal: Proposal) -> None:
+    if proposal.action == "file" and proposal.page and proposal.content:
+        append_to_page(vault, proposal.page, proposal.content)
+    remove_inbox_page(vault, proposal.item)
+
+
+def _review(vault: Path, state: State, ticks: dict[str, bool] | None, report: Report) -> None:
+    """Act on the user's ticks and deletions for proposals shown last time."""
+    items = {item.page: item for item in inbox_items(vault)}
+    waiting = []
+    for proposal in state.proposals:
+        item = items.get(proposal.item)
+        if item is None or item.digest != proposal.digest:
+            report.dropped.append(proposal.item)
+        elif ticks is not None and proposal.id not in ticks:
+            state.parked[proposal.item] = proposal.digest
+            report.parked.append(proposal.item)
+        elif ticks is not None and ticks[proposal.id]:
+            _apply(vault, proposal)
+            report.applied.append(f"{proposal.item} -> {proposal.page or 'discarded'}")
+        else:
+            waiting.append(proposal)
+    state.proposals = waiting
+
+
+def _needing_proposals(state: State, items: list[InboxItem], report: Report) -> list[InboxItem]:
+    proposed = {p.item for p in state.proposals}
+    todo = [i for i in items if i.page not in proposed and state.parked.get(i.page) != i.digest]
+    for item in todo:
+        if not linkable(item.page):
+            report.problems.append(f"can't link to {item.page!r} from the Triage page; rename it")
+    return [i for i in todo if linkable(i.page)]
+
+
+def _propose_for(vault: Path, state: State, todo: list[InboxItem], model: Model, report: Report) -> None:
+    """Add proposals for `todo`. Items the model had nothing usable for get parked.
+
+    If the model call itself fails, nothing is parked, so the next run tries again.
+    """
+    taken = {p.id for p in state.proposals}
+    try:
+        new, problems = propose(todo, content_pages(vault), model, taken)
+    except (ModelError, OSError, subprocess.TimeoutExpired, ValueError) as e:
+        report.problems.append(f"model call failed, will retry next run: {e}")
+        return
+    state.proposals.extend(new)
+    report.proposed.extend(p.item for p in new)
+    report.problems.extend(problems)
+    proposed = {p.item for p in new}
+    state.parked.update({i.page: i.digest for i in todo if i.page not in proposed})
+
+
+def triage(vault: Path, model: Model | None, new_pages: list[NewPage]) -> Report:
+    """Run one pass. With `model` None, nothing new is proposed."""
+    state = load(vault)
+    report = Report()
+    _import_pages(vault, state, new_pages, report)
+
+    triage_file = page_path(vault, TRIAGE)
+    ticks = triage_page.parse(triage_file.read_text(encoding="utf-8")) if triage_file.exists() else None
+    _review(vault, state, ticks, report)
+
+    items = inbox_items(vault)
+    current = {item.page: item.digest for item in items}
+    state.parked = {page: d for page, d in state.parked.items() if current.get(page) == d}
+
+    todo = _needing_proposals(state, items, report)
+    if todo and model is not None:
+        _propose_for(vault, state, todo, model, report)
+
+    write_if_changed(triage_file, triage_page.render(state.proposals))
+    write_if_changed(state_path(vault), state.to_json())
+    return report

@@ -1,0 +1,29 @@
+[project]
+name = "knowledge-dump"
+version = "0.1.0"
+description = "Tooling for a private markdown vault: inbox triage by an agent, synced over git"
+requires-python = ">=3.12"
+dependencies = ["jsonschema", "regress"]
+
+[project.optional-dependencies]
+dev = ["pytest", "hypothesis", "ruff", "mypy"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q"
+
+[tool.ruff]
+line-length = 110
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "B", "UP", "SIM", "RUF"]
+
+[tool.mypy]
+python_version = "3.12"
+strict = true
+files = ["kd"]
+
+[[tool.mypy.overrides]]
+module = ["inbox", "jsonschema.*", "regress"]
+ignore_missing_imports = true

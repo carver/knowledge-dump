@@ -29,8 +29,10 @@ GITIGNORE = """\
 INDEX = """\
 # Notes
 
+${widgets.commandButton("New quick note", "Quick Note")}
+
 - [[Triage]]: proposals for filing what's in the Inbox. Tick to apply.
-- Quick notes land in the Inbox.
+- Quick notes land in the Inbox until triage files them.
 """
 
 

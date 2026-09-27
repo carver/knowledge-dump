@@ -22,7 +22,7 @@ select = ["E", "F", "W", "I", "B", "UP", "SIM", "RUF"]
 [tool.mypy]
 python_version = "3.12"
 strict = true
-files = ["kd"]
+files = ["kd", "host"]
 
 [[tool.mypy.overrides]]
 module = ["inbox", "jsonschema.*", "regress"]

@@ -172,3 +172,18 @@ def test_unreachable_host_is_a_quiet_skip(tmp_path: Path) -> None:
     logs: list[str] = []
     assert run(clone, FakeModel(), no_sparks, logs.append)
     assert logs and "vault unreachable" in logs[0]
+
+
+def test_broken_spark_source_does_not_stop_triage(host_vault: tuple[Path, str], tmp_path: Path) -> None:
+    vault, url = host_vault
+    (vault / "Inbox").mkdir()
+    (vault / "Inbox" / "one.md").write_text("x")
+    kd_host.autocommit(vault)
+
+    def missing_checkout(done: set[str]) -> tuple[list[NewPage], list[str]]:
+        raise ModuleNotFoundError("No module named 'inbox'")
+
+    logs: list[str] = []
+    assert run(VaultClone(tmp_path / "clone", url), FakeModel(), missing_checkout, logs.append)
+    assert any("skipping Sparks" in line for line in logs)
+    assert kd_state.load(vault).proposals

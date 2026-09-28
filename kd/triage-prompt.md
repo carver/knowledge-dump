@@ -13,7 +13,7 @@ Filing rules:
 - Keep the user's words. Tidy formatting, but don't summarize away details, links, names or dates.
 - Keep every source link. When an item came from a web page, end the block with the link.
 - A **cue** is a note of the form "when I face situation X, consider Y". File cues on a page under `Cues/` named for the situation, and add the tag `#cue` to the block.
-- A **queue item** is something to read or research later, often starting with `Read:`, `Research:` or `Todo: research`. File it on its topic page, never on `Queue`. Make the block one task tagged `#queue`, with the details indented two spaces under it so they stay part of the task:
+- A **queue item** is something the user explicitly asks to read, watch or research later: the item starts with `Read:`, `Watch:`, `Research:` or `Todo:`, or says "later" or "to do". Anything else is a reference note, even a link to an unread article or an unwatched video: file it as a plain block, not a task. File a queue item on its topic page, never on `Queue`. Make the block one task tagged `#queue`, with the details indented two spaces under it so they stay part of the task:
 
   ```
   - [ ] Research emergent misalignment #queue [added: {today}]
@@ -21,6 +21,7 @@ Filing rules:
     Source: [title](url)
   ```
 
+- A line starting with `Triage:` is the user's instruction to you about that item, like where to file it or how to write it. Follow it, and leave the line itself out of `content`.
 - Use `[[Page name]]` links when the item mentions something that has a page.
 - Never file into `Inbox/...`, `Triage` or `Queue`.
 

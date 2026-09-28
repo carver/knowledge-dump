@@ -4,7 +4,7 @@ Judgment calls made while building slice 1. Each lists the options, the pick and
 
 ## Where proposals keep their details
 
-Options: encode everything on the Triage page; keep the page human-readable and the details in `.kd/state.json`. Picked: state file. The page shows a one-line summary and a preview. The file holds the exact content to append, so a stray edit on the page can't change what gets written. Against: editing the proposed page name or content on the Triage page does nothing, and you might expect it to. To change a proposal today, delete it (parking the Item), edit the Item, and let the next run propose again.
+Options: encode everything on the Triage page; keep the page human-readable and the details in `.kd/state.json`. Picked: state file. The page shows a one-line summary and a preview. The file holds the exact content to append, so a stray edit on the page can't change what gets written. Against: editing the proposed page name or content on the Triage page does nothing, and you might expect it to. To change a proposal, edit the Item, for example by adding a `Triage:` line; the next run proposes again.
 
 ## Turning a proposal down
 

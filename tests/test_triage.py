@@ -187,3 +187,28 @@ def test_hidden_files_are_not_items(tmp_path: Path, hidden: str) -> None:
     model = FakeModel()
     triage(tmp_path, model, [])
     assert model.calls == 0
+
+
+def test_repropose_by_id_replaces_the_proposal(tmp_path: Path) -> None:
+    write(tmp_path, "Inbox/one", "x")
+    triage(tmp_path, FakeModel(), [])
+    old = only_proposal(tmp_path)
+    report = triage(tmp_path, FakeModel("Better/page"), [], repropose=frozenset({old.id}))
+    new = only_proposal(tmp_path)
+    assert report.withdrawn == ["Inbox/one"]
+    assert new.id != old.id and new.page == "Better/page"
+    assert f"kd:{old.id}" not in triage_text(tmp_path)
+
+
+def test_repropose_by_name_unparks_the_item(tmp_path: Path) -> None:
+    write(tmp_path, "Inbox/one", "x")
+    triage(tmp_path, lambda prompt: {"proposals": []}, [])
+    model = FakeModel()
+    report = triage(tmp_path, model, [], repropose=frozenset({"Inbox/one"}))
+    assert report.withdrawn == ["Inbox/one"]
+    assert model.calls == 1 and only_proposal(tmp_path).item == "Inbox/one"
+
+
+def test_repropose_of_something_unknown_is_a_problem(tmp_path: Path) -> None:
+    report = triage(tmp_path, FakeModel(), [], repropose=frozenset({"abc123"}))
+    assert report.problems == ["nothing to repropose for 'abc123'"]

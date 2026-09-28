@@ -40,6 +40,7 @@ class Report:
     imported: list[str] = field(default_factory=list)
     applied: list[str] = field(default_factory=list)
     parked: list[str] = field(default_factory=list)
+    withdrawn: list[str] = field(default_factory=list)
     dropped: list[str] = field(default_factory=list)
     proposed: list[str] = field(default_factory=list)
     problems: list[str] = field(default_factory=list)
@@ -49,6 +50,7 @@ class Report:
             ("imported Spark", self.imported),
             ("applied", self.applied),
             ("parked (proposal deleted)", self.parked),
+            ("withdrawn to propose again", self.withdrawn),
             ("dropped (item changed or gone)", self.dropped),
             ("proposed", self.proposed),
             ("problem", self.problems),
@@ -75,6 +77,20 @@ def _apply(vault: Path, proposal: Proposal) -> None:
     if proposal.action == "file" and proposal.page and proposal.content:
         append_to_page(vault, proposal.page, proposal.content)
     remove_inbox_page(vault, proposal.item)
+
+
+def _withdraw(state: State, targets: set[str], report: Report) -> None:
+    """Forget proposals and parking for `targets`, proposal ids or Inbox pages, so they're proposed again."""
+    for target in sorted(targets):
+        pages = {p.item for p in state.proposals if target in (p.id, p.item)}
+        if target in state.parked:
+            pages.add(target)
+        if not pages:
+            report.problems.append(f"nothing to repropose for {target!r}")
+        state.proposals = [p for p in state.proposals if p.item not in pages]
+        for page in sorted(pages):
+            state.parked.pop(page, None)
+            report.withdrawn.append(page)
 
 
 def _review(vault: Path, state: State, ticks: dict[str, bool] | None, report: Report) -> None:
@@ -123,11 +139,18 @@ def _propose_for(vault: Path, state: State, todo: list[InboxItem], model: Model,
     state.parked.update({i.page: i.digest for i in todo if i.page not in proposed})
 
 
-def triage(vault: Path, model: Model | None, new_pages: list[NewPage]) -> Report:
-    """Run one pass. With `model` None, nothing new is proposed."""
+def triage(
+    vault: Path, model: Model | None, new_pages: list[NewPage], repropose: frozenset[str] = frozenset()
+) -> Report:
+    """Run one pass. With `model` None, nothing new is proposed.
+
+    `repropose` names proposal ids or Inbox pages to drop and propose afresh,
+    e.g. after changing the triage prompt.
+    """
     state = load(vault)
     report = Report()
     _import_pages(vault, state, new_pages, report)
+    _withdraw(state, set(repropose), report)
 
     triage_file = page_path(vault, TRIAGE)
     ticks = triage_page.parse(triage_file.read_text(encoding="utf-8")) if triage_file.exists() else None

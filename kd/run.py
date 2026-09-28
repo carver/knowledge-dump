@@ -53,7 +53,13 @@ def _read_sparks(sparks: SparkSource, done: set[str], log: Callable[[str], None]
     return new_pages
 
 
-def run(clone: VaultClone, model: Model | None, sparks: SparkSource, log: Callable[[str], None]) -> bool:
+def run(
+    clone: VaultClone,
+    model: Model | None,
+    sparks: SparkSource,
+    log: Callable[[str], None],
+    repropose: frozenset[str] = frozenset(),
+) -> bool:
     """Returns False if the run gave up; the reason has been logged."""
     cached = _cached(model) if model else None
     try:
@@ -62,7 +68,7 @@ def run(clone: VaultClone, model: Model | None, sparks: SparkSource, log: Callab
         for _ in range(ATTEMPTS):
             clone.reset_to_main()
             new_pages = _read_sparks(sparks, set(state.load(clone.path).imported_sparks), log)
-            report = triage(clone.path, cached, new_pages)
+            report = triage(clone.path, cached, new_pages, repropose)
             if not clone.commit_all(_message(report)):
                 for problem in report.problems:
                     log(f"problem: {problem}")

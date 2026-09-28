@@ -9,6 +9,8 @@ from pathlib import Path
 
 INBOX = "Inbox"
 TRIAGE = "Triage"
+# Lists the open #queue tasks from every page; the host creates it.
+QUEUE = "Queue"
 # SilverBullet keeps libraries and plugs here; they aren't notes.
 LIBRARY = "Library"
 STATE_DIR = ".kd"
@@ -45,8 +47,8 @@ def name_problem(name: str) -> str | None:
             return "page name has an empty or padded path segment"
         if segment.startswith("."):
             return "page name has a hidden path segment"
-    if name in (INBOX, TRIAGE) or is_inbox_page(name) or is_library_page(name):
-        return f"can't file into {INBOX}, {TRIAGE} or {LIBRARY}"
+    if name in (INBOX, TRIAGE, QUEUE) or is_inbox_page(name) or is_library_page(name):
+        return f"can't file into {INBOX}, {TRIAGE}, {QUEUE} or {LIBRARY}"
     return None
 
 

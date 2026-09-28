@@ -9,6 +9,7 @@ A pass:
 
 import subprocess
 from dataclasses import dataclass, field
+from datetime import date
 from pathlib import Path
 
 from kd import triage_page
@@ -111,7 +112,7 @@ def _propose_for(vault: Path, state: State, todo: list[InboxItem], model: Model,
     """
     taken = {p.id for p in state.proposals}
     try:
-        new, problems = propose(todo, content_pages(vault), model, taken)
+        new, problems = propose(todo, content_pages(vault), model, taken, date.today())
     except (ModelError, OSError, subprocess.TimeoutExpired, ValueError) as e:
         report.problems.append(f"model call failed, will retry next run: {e}")
         return

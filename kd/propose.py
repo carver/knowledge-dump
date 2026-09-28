@@ -4,6 +4,7 @@ import json
 import secrets
 import subprocess
 from collections.abc import Callable, Iterable
+from datetime import date
 from pathlib import Path
 from typing import Any
 
@@ -61,7 +62,7 @@ class ModelError(RuntimeError):
     """The model call failed or returned something that isn't structured output."""
 
 
-def build_prompt(items: dict[str, InboxItem], pages: list[str]) -> str:
+def build_prompt(items: dict[str, InboxItem], pages: list[str], today: date) -> str:
     listed = pages[:MAX_PAGES_LISTED]
     page_lines = "\n".join(f"- {p}" for p in listed) or "(none yet)"
     if len(pages) > len(listed):
@@ -73,7 +74,8 @@ def build_prompt(items: dict[str, InboxItem], pages: list[str]) -> str:
             text = text[:MAX_ITEM_CHARS] + "\n[… cut]"
         item_blocks.append(f"### {key}: {item.page}\n\n{text.strip() or '(empty page)'}")
     template = PROMPT_TEMPLATE.read_text(encoding="utf-8")
-    return template.replace("{pages}", page_lines).replace("{items}", "\n\n".join(item_blocks))
+    filled = template.replace("{today}", today.isoformat()).replace("{pages}", page_lines)
+    return filled.replace("{items}", "\n\n".join(item_blocks))
 
 
 def run_claude(prompt: str) -> dict[str, Any]:
@@ -151,7 +153,7 @@ def to_proposals(
 
 
 def propose(
-    items: list[InboxItem], pages: list[str], model: Model, taken_ids: set[str]
+    items: list[InboxItem], pages: list[str], model: Model, taken_ids: set[str], today: date
 ) -> tuple[list[Proposal], list[str]]:
     keyed = {f"i{n}": item for n, item in enumerate(items, start=1)}
-    return to_proposals(model(build_prompt(keyed, pages)), keyed, taken_ids)
+    return to_proposals(model(build_prompt(keyed, pages, today)), keyed, taken_ids)

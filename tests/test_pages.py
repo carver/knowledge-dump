@@ -24,6 +24,7 @@ def test_accepts_ordinary_names(name: str) -> None:
         "Inbox",
         "Inbox/x",
         "Triage",
+        "Queue",
         "Library/Std/Config",
         "../escape",
         "a/../b",

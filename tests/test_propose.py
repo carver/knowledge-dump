@@ -1,3 +1,4 @@
+from datetime import date
 from typing import Any
 
 from kd.propose import build_prompt, to_proposals
@@ -79,7 +80,11 @@ def test_missing_proposals_list() -> None:
 
 
 def test_prompt_lists_pages_and_keys() -> None:
-    prompt = build_prompt(ITEMS, ["People/Ada"])
+    prompt = build_prompt(ITEMS, ["People/Ada"], date(2026, 9, 28))
     assert "- People/Ada" in prompt
     assert "### i1: Inbox/one" in prompt and "Debezium for CDC" in prompt
-    assert "{items}" not in prompt and "{pages}" not in prompt
+    assert "{items}" not in prompt and "{pages}" not in prompt and "{today}" not in prompt
+
+
+def test_prompt_dates_queue_items_today() -> None:
+    assert "[added: 2026-09-28]" in build_prompt(ITEMS, [], date(2026, 9, 28))

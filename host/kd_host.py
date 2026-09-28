@@ -32,7 +32,23 @@ INDEX = """\
 ${widgets.commandButton("New quick note", "Quick Note")}
 
 - [[Triage]]: proposals for filing what's in the Inbox. Tick to apply.
+- [[Queue]]: things to read or research, from every page.
 - Quick notes land in the Inbox until triage files them.
+"""
+
+# Triage's previews quote queue tasks, so its page is left out.
+QUEUE = """\
+# Queue
+
+Things to read or research. Each one lives on its topic page with its source. \
+Tick it here or there when you're done.
+
+${query[[
+  from t = index.tasks("queue")
+  where not t.done and t.page != "Triage"
+  order by t.page, t.pos
+  select templates.taskItem(t)
+]]}
 """
 
 
@@ -94,9 +110,10 @@ def init(vault: Path) -> None:
     gitignore = vault / ".gitignore"
     if not gitignore.exists():
         gitignore.write_text(GITIGNORE)
-    index = vault / "index.md"
-    if not index.exists():
-        index.write_text(INDEX)
+    for name, text in (("index.md", INDEX), ("Queue.md", QUEUE)):
+        page = vault / name
+        if not page.exists():
+            page.write_text(text)
     install_hooks(vault)
     with locked(vault):
         commit_all(vault, "Set up the vault")

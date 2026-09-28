@@ -37,3 +37,11 @@ Deferred by decision (docs/slice-1.md). The laptop has the only full copy with h
 ## Spark reader location
 
 Options: copy anki-cards' Inbox reader; move it into tab-squasher's `reader/inbox.py` and share it. Picked: share. Against: knowledge-dump now fails to import Sparks when tab-squasher's checkout is missing or on an older branch. The run logs the error and still does the rest.
+
+## Where queue items live
+
+Options: a `#queue` task on the topic page, with the Queue page as a query; one page per item under `Queue/` with a status in frontmatter. Picked: the task. Notes from reading go on the topic page anyway, and SilverBullet already indexes tasks, so the Queue page needs no upkeep. Against: no "reading now" state, and no page for notes about one source. Promote an item to its own page when that matters.
+
+## Queue order
+
+Options: by topic page, then position; by the `added` date. Picked: topic, then position, so related items sit together and each topic reads oldest first. Against: you can't see what's been waiting longest across topics. `added` is on every task, so a second query can sort by it.

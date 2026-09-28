@@ -10,6 +10,7 @@ import subprocess
 import sys
 from pathlib import Path
 from typing import Any
+from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
 
 from kd.pages import INBOX
 from kd.triage import NewPage
@@ -32,15 +33,27 @@ def _reader() -> Any:
     return inbox
 
 
+def _is_youtube(host: str) -> bool:
+    return host in ("youtu.be", "youtube.com") or host.endswith(".youtube.com")
+
+
+def _at_moment(url: str, seconds: int) -> str:
+    """`url` set to start playing at `seconds`, for sites whose links support it."""
+    parts = urlsplit(url)
+    if not _is_youtube(parts.hostname or ""):
+        return url
+    query = [(k, v) for k, v in parse_qsl(parts.query, keep_blank_values=True) if k != "t"]
+    return urlunsplit(parts._replace(query=urlencode([*query, ("t", str(seconds))])))
+
+
 def _source_line(source: dict[str, Any]) -> str:
     title = source.get("title") or source["url"]
     title = title.replace("[", "(").replace("]", ")")
-    line = f"Source: [{title}]({source['url']})"
     seconds = source.get("video_seconds")
-    if seconds is not None:
-        minutes, secs = divmod(int(seconds), 60)
-        line += f" at {minutes}:{secs:02d}"
-    return line
+    if seconds is None:
+        return f"Source: [{title}]({source['url']})"
+    minutes, secs = divmod(int(seconds), 60)
+    return f"Source: [{title}]({_at_moment(source['url'], int(seconds))}) at {minutes}:{secs:02d}"
 
 
 def page_for(spark: dict[str, Any]) -> NewPage:

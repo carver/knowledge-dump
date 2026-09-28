@@ -50,3 +50,27 @@ def test_every_valid_fixture_makes_a_linkable_inbox_page() -> None:
         page = page_for(json.loads(path.read_text()))
         assert is_inbox_page(page.page) and linkable(page.page), path.name
         assert page.text.strip()
+
+
+def test_youtube_source_links_to_the_captured_moment() -> None:
+    spark = fixture("knowledge_dump_destination.json")
+    spark["source"] = {
+        "url": "https://m.youtube.com/watch?v=KrM5c0vp8s0&t=5",
+        "title": "T",
+        "video_seconds": 121.7,
+    }
+    assert page_for(spark).text.endswith(
+        "Source: [T](https://m.youtube.com/watch?v=KrM5c0vp8s0&t=121) at 2:01\n"
+    )
+
+
+def test_short_youtube_links_get_the_moment_too() -> None:
+    spark = fixture("knowledge_dump_destination.json")
+    spark["source"] = {"url": "https://youtu.be/KrM5c0vp8s0", "title": "T", "video_seconds": 3}
+    assert "(https://youtu.be/KrM5c0vp8s0?t=3) at 0:03" in page_for(spark).text
+
+
+def test_lookalike_hosts_keep_their_url() -> None:
+    spark = fixture("knowledge_dump_destination.json")
+    spark["source"] = {"url": "https://notyoutube.com/watch?v=x", "title": "T", "video_seconds": 3}
+    assert "(https://notyoutube.com/watch?v=x) at 0:03" in page_for(spark).text

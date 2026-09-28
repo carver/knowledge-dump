@@ -1,7 +1,9 @@
 from pathlib import Path
 
+import pytest
 from test_triage import FakeModel, write
 
+from kd import __main__ as kd_main
 from kd.preview import preview
 
 
@@ -38,3 +40,19 @@ def test_empty_inbox_skips_the_model(tmp_path: Path) -> None:
     model = FakeModel()
     assert preview(tmp_path, model, []) == ["the Inbox is empty"]
     assert model.calls == 0
+
+
+def test_preview_reads_a_local_vault_with_uncommitted_edits(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    write(tmp_path, "Inbox/one", "not committed anywhere")
+    model = FakeModel("Cues/X")
+    monkeypatch.setattr(kd_main, "run_claude", model)
+    assert kd_main.main(["preview", "--vault", str(tmp_path), "Inbox/one"]) == 0
+    assert "Inbox/one -> Cues/X (about i1)" in capsys.readouterr().out
+    assert model.calls == 1
+
+
+def test_preview_rejects_a_vault_and_a_remote_together(tmp_path: Path) -> None:
+    with pytest.raises(SystemExit):
+        kd_main.main(["preview", "--vault", str(tmp_path), "--remote", "git://x/notes"])

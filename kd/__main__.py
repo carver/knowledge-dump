@@ -4,6 +4,7 @@ import argparse
 import os
 import sys
 import tempfile
+from collections.abc import Callable
 from datetime import UTC, datetime
 from pathlib import Path
 
@@ -40,7 +41,7 @@ def main(argv: list[str] | None = None) -> int:
         default=Path(os.environ.get("KD_VAULT_CLONE", DEFAULT_CLONE)),
         help="where the sandbox keeps its clone of the vault (env KD_VAULT_CLONE; default %(default)s)",
     )
-    _add_remote(triage)
+    _add_remote(triage.add_argument)
     triage.add_argument(
         "--no-model", action="store_true", help="don't call the model; only apply ticks and import"
     )
@@ -61,9 +62,17 @@ def main(argv: list[str] | None = None) -> int:
     preview_cmd.add_argument(
         "pages", nargs="*", help="Inbox pages to ask about, like 'Inbox/Spark x' (default: all)"
     )
-    _add_remote(preview_cmd)
+    source = preview_cmd.add_mutually_exclusive_group()
+    source.add_argument(
+        "--vault",
+        type=Path,
+        help="read this vault folder as it is, uncommitted edits included, instead of cloning",
+    )
+    _add_remote(source.add_argument)
     args = parser.parse_args(argv)
 
+    if args.command == "preview" and args.vault:
+        return _print_preview(preview(args.vault, run_claude, args.pages))
     if args.command == "preview":
         return _preview(args.remote, args.pages)
     clone = VaultClone(args.clone, args.remote)
@@ -72,8 +81,8 @@ def main(argv: list[str] | None = None) -> int:
     return 0 if run(clone, model, sparks, _log, frozenset(args.repropose)) else 1
 
 
-def _add_remote(parser: argparse.ArgumentParser) -> None:
-    parser.add_argument(
+def _add_remote(add_argument: Callable[..., object]) -> None:
+    add_argument(
         "--remote",
         default=os.environ.get("KD_VAULT_REMOTE", DEFAULT_REMOTE),
         help="git URL of the vault on the host (env KD_VAULT_REMOTE; default %(default)s)",
@@ -89,6 +98,10 @@ def _preview(remote: str, pages: list[str]) -> int:
             print(e, file=sys.stderr)
             return 1
         lines = preview(clone.path, run_claude, pages)
+    return _print_preview(lines)
+
+
+def _print_preview(lines: list[str]) -> int:
     print("\n".join(lines))
     return 1 if any(line.startswith("problem: ") for line in lines) else 0
 

@@ -55,6 +55,7 @@ python3 -m kd triage -h                    # one run; silent when there's nothin
 python3 -m kd triage --no-model            # apply ticks and import Sparks, don't call Claude
 python3 -m kd triage --repropose 3f9a1c     # drop a proposal and ask again, e.g. after a prompt change
 python3 -m kd preview 'Inbox/Spark x'       # print what triage would propose; changes nothing
+python3 -m kd preview --vault ~/v          # same, on a local vault folder with uncommitted edits
 python3 host/kd_host.py -h                 # host side: init, autocommit, merge-agent
 ```
 

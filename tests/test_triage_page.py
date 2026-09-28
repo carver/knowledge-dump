@@ -34,7 +34,7 @@ def proposals(draw: st.DrawFn) -> list[Proposal]:
 
 @given(proposals())
 def test_every_rendered_proposal_parses_back_unticked(shown: list[Proposal]) -> None:
-    assert triage_page.parse(triage_page.render(shown)) == {p.id: False for p in shown}
+    assert triage_page.parse(triage_page.render(shown)) == {p.id: "none" for p in shown}
 
 
 @given(proposals(), st.data())
@@ -45,7 +45,36 @@ def test_ticking_a_box_is_seen(shown: list[Proposal], data: st.DataObject) -> No
     lines = triage_page.render(shown).splitlines()
     ticked = [line.replace("- [ ]", "- [x]", 1) if f"`kd:{target.id}`" in line else line for line in lines]
     parsed = triage_page.parse("\n".join(ticked))
-    assert parsed == {p.id: p.id == target.id for p in shown}
+    assert parsed == {p.id: "apply" if p.id == target.id else "none" for p in shown}
+
+
+@given(proposals(), st.data())
+def test_ticking_discard_is_seen(shown: list[Proposal], data: st.DataObject) -> None:
+    filed = [p for p in shown if p.action == "file"]
+    if not filed:
+        return
+    target = data.draw(st.sampled_from(filed))
+    mark = f"`kd:{target.id}:discard`"
+    lines = triage_page.render(shown).splitlines()
+    ticked = [line.replace("- [ ]", "- [x]", 1) if mark in line else line for line in lines]
+    parsed = triage_page.parse("\n".join(ticked))
+    assert parsed == {p.id: "discard" if p.id == target.id else "none" for p in shown}
+
+
+def test_discard_checkbox_sits_under_file_proposals_only() -> None:
+    filed = Proposal(
+        id="aaaaaa", item="Inbox/a", digest="d", action="file", summary="s", page="P", content="c"
+    )
+    dropped = Proposal(id="bbbbbb", item="Inbox/b", digest="d", action="discard", summary="s")
+    lines = triage_page.render([filed, dropped]).splitlines()
+    first = lines.index("- [ ] File into [[P]]: s ([[Inbox/a]]) `kd:aaaaaa`")
+    assert lines[first + 1] == "  - [ ] Discard the note instead `kd:aaaaaa:discard`"
+    assert "kd:bbbbbb:discard" not in "\n".join(lines)
+
+
+def test_both_boxes_ticked_is_reported_as_both() -> None:
+    text = "- [x] File into [[P]]: s ([[Inbox/a]]) `kd:abcdef`\n  - [x] Discard `kd:abcdef:discard`"
+    assert triage_page.parse(text) == {"abcdef": "both"}
 
 
 def test_content_that_looks_like_a_task_is_not_parsed_as_one() -> None:
@@ -56,9 +85,9 @@ def test_content_that_looks_like_a_task_is_not_parsed_as_one() -> None:
         action="file",
         summary="s",
         page="P",
-        content="- [x] fake `kd:bbbbbb`\n",
+        content="- [x] fake `kd:bbbbbb`\n  - [x] Discard `kd:aaaaaa:discard`\n",
     )
-    assert triage_page.parse(triage_page.render([sneaky])) == {"aaaaaa": False}
+    assert triage_page.parse(triage_page.render([sneaky])) == {"aaaaaa": "none"}
 
 
 def test_empty_page_says_nothing_to_triage() -> None:
@@ -66,4 +95,4 @@ def test_empty_page_says_nothing_to_triage() -> None:
 
 
 def test_uppercase_tick_counts() -> None:
-    assert triage_page.parse("- [X] File into [[P]]: s ([[Inbox/a]]) `kd:abcdef`") == {"abcdef": True}
+    assert triage_page.parse("- [X] File into [[P]]: s ([[Inbox/a]]) `kd:abcdef`") == {"abcdef": "apply"}

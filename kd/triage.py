@@ -8,7 +8,7 @@ A pass:
 """
 
 import subprocess
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from datetime import date
 from pathlib import Path
 
@@ -93,21 +93,32 @@ def _withdraw(state: State, targets: set[str], report: Report) -> None:
             report.withdrawn.append(page)
 
 
-def _review(vault: Path, state: State, ticks: dict[str, bool] | None, report: Report) -> None:
-    """Act on the user's ticks and deletions for proposals shown last time."""
+def _review(vault: Path, state: State, ticks: dict[str, triage_page.Answer] | None, report: Report) -> None:
+    """Act on the user's ticks and deletions for proposals shown last time.
+
+    With both boxes of a proposal ticked, neither is done; the page is rewritten unticked.
+    """
     items = {item.page: item for item in inbox_items(vault)}
     waiting = []
     for proposal in state.proposals:
         item = items.get(proposal.item)
+        answer = "none" if ticks is None else ticks.get(proposal.id)
         if item is None or item.digest != proposal.digest:
             report.dropped.append(proposal.item)
-        elif ticks is not None and proposal.id not in ticks:
+        elif answer is None:
             state.parked[proposal.item] = proposal.digest
             report.parked.append(proposal.item)
-        elif ticks is not None and ticks[proposal.id]:
-            _apply(vault, proposal)
-            report.applied.append(f"{proposal.item} -> {proposal.page or 'discarded'}")
+        elif answer in ("apply", "discard"):
+            chosen = (
+                proposal
+                if answer == "apply"
+                else replace(proposal, action="discard", page=None, content=None)
+            )
+            _apply(vault, chosen)
+            report.applied.append(f"{chosen.item} -> {chosen.page or 'discarded'}")
         else:
+            if answer == "both":
+                report.problems.append(f"both boxes ticked for {proposal.item}; unticked them, tick one")
             waiting.append(proposal)
     state.proposals = waiting
 

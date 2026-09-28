@@ -28,7 +28,7 @@ sandbox: kd triage (hourly) ── git://host.docker.internal/notes ───┘
 
 1. **Capture.** Use SilverBullet's Quick Note, which makes a page under `Inbox/`, or send a Spark with the tab-squasher extension and pick the "Knowledge dump" Destination.
 2. **Triage.** Every hour the sandbox pulls the vault and turns new Sparks into Inbox pages. Then it asks Claude where each new Inbox page belongs and lists the answers on the **Triage** page as checkboxes.
-3. **Approve.** Tick a proposal in SilverBullet and the next run applies it: the content is appended to the chosen page and the Inbox page is removed. To turn a proposal down, delete its line; the page stays in the Inbox until you edit it.
+3. **Approve.** Tick a proposal in SilverBullet and the next run applies it: the content is appended to the chosen page and the Inbox page is removed. To throw the note away instead, tick "Discard the note instead" under it. To turn a proposal down, delete its line; the page stays in the Inbox until you edit it.
 4. **Steer.** To change a proposal, open its Inbox page and add a line like `Triage: reference only, not a queue item`. Editing the page withdraws the proposal, and the next run follows the instruction without filing the line.
 5. **Queue.** Start a note with `Read:`, `Watch:` or `Research:` and triage files it as a `#queue` task on its topic page, keeping the quote and link. The **Queue** page lists every open one. Tick it there or on the topic page when you're done.
 6. You can always edit any page directly. The Inbox is optional.

@@ -43,10 +43,12 @@ def triage_text(vault: Path) -> str:
     return (vault / "Triage.md").read_text()
 
 
-def tick(vault: Path, proposal_id: str) -> None:
+def tick(vault: Path, mark: str) -> None:
+    """Tick the box whose line ends in `mark`, a proposal id or `<id>:discard`."""
     text = triage_text(vault)
     lines = [
-        line.replace("- [ ]", "- [x]") if f"kd:{proposal_id}" in line else line for line in text.splitlines()
+        line.replace("- [ ]", "- [x]") if line.endswith(f"`kd:{mark}`") else line
+        for line in text.splitlines()
     ]
     (vault / "Triage.md").write_text("\n".join(lines) + "\n")
 
@@ -142,6 +144,29 @@ def test_discard_removes_the_item(tmp_path: Path) -> None:
     tick(tmp_path, only_proposal(tmp_path).id)
     triage(tmp_path, None, [])
     assert not (tmp_path / "Inbox/junk.md").exists()
+
+
+def test_discard_tick_removes_the_item_without_filing_it(tmp_path: Path) -> None:
+    write(tmp_path, "Inbox/one", "x")
+    triage(tmp_path, FakeModel(), [])
+    tick(tmp_path, f"{only_proposal(tmp_path).id}:discard")
+    report = triage(tmp_path, None, [])
+    assert report.applied == ["Inbox/one -> discarded"]
+    assert not (tmp_path / "Inbox/one.md").exists()
+    assert not (tmp_path / "Cues/Change data capture.md").exists()
+
+
+def test_both_boxes_ticked_does_neither_and_asks_again(tmp_path: Path) -> None:
+    write(tmp_path, "Inbox/one", "x")
+    triage(tmp_path, FakeModel(), [])
+    proposal = only_proposal(tmp_path)
+    tick(tmp_path, proposal.id)
+    tick(tmp_path, f"{proposal.id}:discard")
+    report = triage(tmp_path, None, [])
+    assert report.applied == [] and report.problems
+    assert (tmp_path / "Inbox/one.md").exists()
+    assert only_proposal(tmp_path) == proposal
+    assert "- [x]" not in triage_text(tmp_path)
 
 
 def test_model_failure_is_retried_next_run(tmp_path: Path) -> None:

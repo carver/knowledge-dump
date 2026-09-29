@@ -1,6 +1,7 @@
 """Asking the model for proposals, and checking what it sends back."""
 
 import json
+import os
 import secrets
 import subprocess
 from collections.abc import Callable, Iterable
@@ -79,7 +80,11 @@ def build_prompt(items: dict[str, InboxItem], pages: list[str], today: date) -> 
 
 
 def run_claude(prompt: str) -> dict[str, Any]:
-    result = subprocess.run(CLAUDE_CMD, input=prompt, capture_output=True, text=True, timeout=TIMEOUT_SECONDS)
+    # With the API key set, claude bills the API instead of the claude.ai subscription.
+    env = {name: value for name, value in os.environ.items() if name != "ANTHROPIC_API_KEY"}
+    result = subprocess.run(
+        CLAUDE_CMD, input=prompt, capture_output=True, text=True, timeout=TIMEOUT_SECONDS, env=env
+    )
     if result.returncode != 0:
         raise ModelError(f"claude exited {result.returncode}: {result.stderr.strip()[:500]}")
     reply = json.loads(result.stdout)

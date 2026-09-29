@@ -1,7 +1,9 @@
+import json
+import subprocess
 from datetime import date
 from typing import Any
 
-from kd.propose import build_prompt, to_proposals
+from kd.propose import build_prompt, run_claude, to_proposals
 from kd.vault import InboxItem, digest
 
 ITEMS = {
@@ -88,3 +90,18 @@ def test_prompt_lists_pages_and_keys() -> None:
 
 def test_prompt_dates_queue_items_today() -> None:
     assert "[added: 2026-09-28]" in build_prompt(ITEMS, [], date(2026, 9, 28))
+
+
+def test_run_claude_bills_the_subscription_not_the_api_key(monkeypatch: Any) -> None:
+    seen: dict[str, Any] = {}
+
+    def fake_run(cmd: list[str], **kwargs: Any) -> subprocess.CompletedProcess[str]:
+        seen.update(kwargs)
+        reply = {"structured_output": {"proposals": []}}
+        return subprocess.CompletedProcess(cmd, 0, stdout=json.dumps(reply))
+
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-test")
+    monkeypatch.setattr(subprocess, "run", fake_run)
+    run_claude("prompt")
+    assert "ANTHROPIC_API_KEY" not in seen["env"]
+    assert "PATH" in seen["env"]

@@ -3,7 +3,9 @@ import subprocess
 from datetime import date
 from typing import Any
 
-from kd.propose import build_prompt, run_claude, to_proposals
+import pytest
+
+from kd.propose import SCHEMA, ModelError, build_prompt, run_claude, to_proposals
 from kd.vault import InboxItem, digest
 
 ITEMS = {
@@ -92,16 +94,28 @@ def test_prompt_dates_queue_items_today() -> None:
     assert "[added: 2026-09-28]" in build_prompt(ITEMS, [], date(2026, 9, 28))
 
 
-def test_run_claude_bills_the_subscription_not_the_api_key(monkeypatch: Any) -> None:
-    seen: dict[str, Any] = {}
+def fake_claude_json(monkeypatch: Any, returncode: int = 0, stdout: str = "", stderr: str = "") -> list[Any]:
+    calls: list[Any] = []
 
     def fake_run(cmd: list[str], **kwargs: Any) -> subprocess.CompletedProcess[str]:
-        seen.update(kwargs)
-        reply = {"structured_output": {"proposals": []}}
-        return subprocess.CompletedProcess(cmd, 0, stdout=json.dumps(reply))
+        calls.append((cmd, kwargs))
+        return subprocess.CompletedProcess(cmd, returncode, stdout=stdout, stderr=stderr)
 
-    monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-test")
     monkeypatch.setattr(subprocess, "run", fake_run)
-    run_claude("prompt")
-    assert "ANTHROPIC_API_KEY" not in seen["env"]
-    assert "PATH" in seen["env"]
+    return calls
+
+
+def test_run_claude_asks_claude_json_with_the_schema_and_no_tools(monkeypatch: Any) -> None:
+    calls = fake_claude_json(monkeypatch, stdout=json.dumps({"proposals": []}) + "\n")
+    assert run_claude("the prompt") == {"proposals": []}
+    cmd, kwargs = calls[0]
+    assert cmd[0] == "claude-json"
+    assert json.loads(cmd[cmd.index("--schema") + 1]) == SCHEMA
+    assert "--tools" not in cmd
+    assert kwargs["input"] == "the prompt"
+
+
+def test_run_claude_raises_model_error_when_the_call_fails(monkeypatch: Any) -> None:
+    fake_claude_json(monkeypatch, returncode=1, stderr="claude-json: claude exited 1: overloaded")
+    with pytest.raises(ModelError, match="overloaded"):
+        run_claude("the prompt")

@@ -1,7 +1,6 @@
 """Asking the model for proposals, and checking what it sends back."""
 
 import json
-import os
 import secrets
 import subprocess
 from collections.abc import Callable, Iterable
@@ -42,16 +41,12 @@ SCHEMA = {
 }
 
 CLAUDE_CMD = [
-    "claude",
-    "-p",
+    "claude-json",
     "--model",
     "sonnet",
-    "--tools",
-    "",
-    "--no-session-persistence",
-    "--output-format",
-    "json",
-    "--json-schema",
+    "--timeout",
+    str(TIMEOUT_SECONDS),
+    "--schema",
     json.dumps(SCHEMA),
 ]
 
@@ -80,17 +75,16 @@ def build_prompt(items: dict[str, InboxItem], pages: list[str], today: date) -> 
 
 
 def run_claude(prompt: str) -> dict[str, Any]:
-    # With the API key set, claude bills the API instead of the claude.ai subscription.
-    env = {name: value for name, value in os.environ.items() if name != "ANTHROPIC_API_KEY"}
-    result = subprocess.run(
-        CLAUDE_CMD, input=prompt, capture_output=True, text=True, timeout=TIMEOUT_SECONDS, env=env
-    )
+    """Ask Claude through llm-toolbox's claude-json, which bills the claude.ai subscription."""
+    try:
+        result = subprocess.run(
+            CLAUDE_CMD, input=prompt, capture_output=True, text=True, timeout=TIMEOUT_SECONDS + 60
+        )
+    except (OSError, subprocess.TimeoutExpired) as error:
+        raise ModelError(f"claude-json did not run: {error}") from error
     if result.returncode != 0:
-        raise ModelError(f"claude exited {result.returncode}: {result.stderr.strip()[:500]}")
-    reply = json.loads(result.stdout)
-    output = reply.get("structured_output")
-    if reply.get("is_error") or not isinstance(output, dict):
-        raise ModelError(f"claude gave no structured output: {str(reply.get('result'))[:500]}")
+        raise ModelError(result.stderr.strip()[:500] or f"claude-json exited {result.returncode}")
+    output: dict[str, Any] = json.loads(result.stdout)
     return output
 
 

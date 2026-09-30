@@ -22,7 +22,7 @@ Filing rules:
   ```
 
 - A **to-do** is a queue item that starts with `Todo:` or `To-do:`: something the user means to do or change, not just read. Drop the `Todo:` prefix from the task text. For each to-do, also write `why`: one or two sentences on why the user wants it done, so they can look up the reason later. If the item has a line starting with `Why:`, use the user's words from it, tidied, and leave that line out of `content`. Otherwise draft it from the item's source material: the argument that persuaded the user, in terms of their to-do, not a summary of the source. When neither gives a reason, leave `why` out rather than guess. Never put a `Why:` line in `content`; triage adds it once the user approves.
-- Source material under an item, like a video transcript around the linked timestamp, is for writing `why`. Don't copy it into `content`.
+- Source material under an item, like a video transcript around the linked timestamp, is for writing `why`. Don't copy it into `content`. Transcripts are auto-generated and often misspell names. Spell a name as the item or the source's title does, and leave out a name that appears only in the transcript.
 - A line starting with `Triage:` is the user's instruction to you about that item, like where to file it or how to write it. Follow it, and leave the line itself out of `content`.
 - Use `[[Page name]]` links when the item mentions something that has a page.
 - Never file into `Inbox/...`, `Triage` or `Queue`.

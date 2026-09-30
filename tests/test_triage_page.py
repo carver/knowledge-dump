@@ -117,15 +117,20 @@ def with_why(keep: bool = True) -> Proposal:
 def test_why_box_is_ticked_to_start_with() -> None:
     lines = triage_page.render([with_why()]).splitlines()
     assert "  - [x] Keep the why: It saves review time. `kd:aaaaaa:why`" in lines
-    assert triage_page.kept_whys("\n".join(lines)) == {"aaaaaa"}
+    assert triage_page.kept_whys("\n".join(lines)) == {"aaaaaa": "It saves review time."}
     assert triage_page.parse("\n".join(lines)) == {"aaaaaa": "none"}
 
 
 def test_an_unticked_why_box_renders_unticked_and_parses_as_dropped() -> None:
     text = triage_page.render([with_why(keep=False)])
     assert "  - [ ] Keep the why: It saves review time. `kd:aaaaaa:why`" in text
-    assert triage_page.kept_whys(text) == set()
+    assert triage_page.kept_whys(text) == {}
 
 
 def test_no_why_box_without_a_why() -> None:
     assert ":why`" not in triage_page.render([replace(with_why(), why=None)])
+
+
+def test_an_edited_why_is_read_back_with_or_without_its_label() -> None:
+    text = "  - [x] Keep the why: by Dex Horthy `kd:aaaaaa:why`\n  - [X] just this   `kd:bbbbbb:why`"
+    assert triage_page.kept_whys(text) == {"aaaaaa": "by Dex Horthy", "bbbbbb": "just this"}

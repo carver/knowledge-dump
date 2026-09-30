@@ -4,8 +4,8 @@ Each proposal is one top-level task line ending in its id, like `kd:3f9a1c`.
 A proposal to file has a nested task under it ending in `kd:3f9a1c:discard`,
 for throwing the note away instead. A proposal with a Why has another, ticked
 to start with, ending in `kd:3f9a1c:why`: untick it, or delete it, to file the
-note without its Why line. The triage agent rewrites the page. The user only
-ticks boxes or deletes lines.
+note without its Why line. The triage agent rewrites the page. The user ticks
+boxes, deletes lines, and may edit the text of a Why.
 """
 
 import re
@@ -25,14 +25,15 @@ _ANSWERS: dict[tuple[bool, bool], Answer] = {
 PREVIEW_LINES = 6
 _TASK = re.compile(r"^- \[([ xX])\] .*`kd:([0-9a-f]{6})`\s*$")
 _DISCARD = re.compile(r"^  - \[([ xX])\] .*`kd:([0-9a-f]{6}):discard`\s*$")
-_WHY = re.compile(r"^  - \[([ xX])\] .*`kd:([0-9a-f]{6}):why`\s*$")
+_WHY = re.compile(r"^  - \[([ xX])\] (.*?)\s*`kd:([0-9a-f]{6}):why`\s*$")
+_WHY_LABEL = re.compile(r"^keep the why:\s*", re.IGNORECASE)
 
 HEADER = """# Triage
 
 Proposals from the triage agent for pages in the Inbox. Tick one and the next run applies it, \
 or tick "Discard the note instead" to delete its Inbox page. \
 Delete a proposal to turn it down; its page stays in the Inbox. \
-Untick "Keep the why" to file a to-do without its Why line.
+Edit the text after "Keep the why:" to change the Why, or untick it to file a to-do without one.
 """
 
 
@@ -73,6 +74,10 @@ def parse(text: str) -> dict[str, Answer]:
     return {pid: _ANSWERS[apply, discard.get(pid, False)] for pid, apply in _ticked(_TASK, text).items()}
 
 
-def kept_whys(text: str) -> set[str]:
-    """Ids of the proposals whose "Keep the why" box is on the page and ticked."""
-    return {pid for pid, ticked in _ticked(_WHY, text).items() if ticked}
+def kept_whys(text: str) -> dict[str, str]:
+    """Proposal id -> the Why as the page shows it, for each ticked "Keep the why" box."""
+    kept = {}
+    for match in map(_WHY.match, text.splitlines()):
+        if match and match.group(1) != " ":
+            kept[match.group(3)] = _WHY_LABEL.sub("", match.group(2)).strip()
+    return kept

@@ -14,7 +14,7 @@ from pathlib import Path
 
 from kd import triage_page
 from kd.pages import TRIAGE, linkable, page_path
-from kd.propose import Model, ModelError, propose
+from kd.propose import Model, ModelError, _one_line, propose
 from kd.state import Proposal, State, load, state_path
 from kd.vault import (
     InboxItem,
@@ -24,6 +24,9 @@ from kd.vault import (
     remove_inbox_page,
     write_if_changed,
 )
+
+# A Why edited on the Triage page is the user's own, so it gets more room than the model's.
+MAX_EDITED_WHY_CHARS = 2000
 
 
 @dataclass(frozen=True)
@@ -116,7 +119,8 @@ def _review(vault: Path, state: State, page_text: str | None, report: Report) ->
     waiting = []
     for proposal in state.proposals:
         if kept is not None and proposal.why:
-            proposal = replace(proposal, keep_why=proposal.id in kept)
+            edited = _one_line(kept.get(proposal.id, ""), MAX_EDITED_WHY_CHARS)
+            proposal = replace(proposal, keep_why=proposal.id in kept, why=edited or proposal.why)
         item = items.get(proposal.item)
         answer = "none" if ticks is None else ticks.get(proposal.id)
         if item is None or item.digest != proposal.digest:

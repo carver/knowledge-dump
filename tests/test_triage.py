@@ -315,3 +315,26 @@ def test_deleting_the_why_line_drops_the_why(tmp_path: Path) -> None:
     tick(tmp_path, proposal_id)
     triage(tmp_path, WhyModel(), [])
     assert "Why:" not in filed_page(tmp_path)
+
+
+def test_a_why_edited_on_the_triage_page_is_the_one_filed(tmp_path: Path) -> None:
+    write(tmp_path, "Inbox/todo", "Todo: install retro")
+    triage(tmp_path, WhyModel(), [])
+    proposal_id = only_proposal(tmp_path).id
+    edited = triage_text(tmp_path).replace("the process is wrong", "the process `needs` fixing")
+    (tmp_path / "Triage.md").write_text(edited)
+    triage(tmp_path, WhyModel(), [])
+    assert "Keep the why: A comment written twice means the process 'needs' fixing." in triage_text(tmp_path)
+    tick(tmp_path, proposal_id)
+    triage(tmp_path, WhyModel(), [])
+    assert "  Why: A comment written twice means the process 'needs' fixing.\n" in filed_page(tmp_path)
+
+
+def test_emptying_an_edited_why_keeps_the_old_one(tmp_path: Path) -> None:
+    write(tmp_path, "Inbox/todo", "Todo: install retro")
+    triage(tmp_path, WhyModel(), [])
+    proposal = only_proposal(tmp_path)
+    emptied = triage_text(tmp_path).replace(f"Keep the why: {proposal.why} ", "")
+    (tmp_path / "Triage.md").write_text(emptied)
+    triage(tmp_path, WhyModel(), [])
+    assert only_proposal(tmp_path).why == proposal.why

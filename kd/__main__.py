@@ -62,6 +62,11 @@ def main(argv: list[str] | None = None) -> int:
     preview_cmd.add_argument(
         "pages", nargs="*", help="Inbox pages to ask about, like 'Inbox/Spark x' (default: all)"
     )
+    preview_cmd.add_argument(
+        "--compare",
+        action="store_true",
+        help="show each proposal as a diff against the one waiting on the Triage page",
+    )
     source = preview_cmd.add_mutually_exclusive_group()
     source.add_argument(
         "--vault",
@@ -72,9 +77,9 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
 
     if args.command == "preview" and args.vault:
-        return _print_preview(preview(args.vault, run_claude, args.pages))
+        return _print_preview(preview(args.vault, run_claude, args.pages, args.compare))
     if args.command == "preview":
-        return _preview(args.remote, args.pages)
+        return _preview(args.remote, args.pages, args.compare)
     clone = VaultClone(args.clone, args.remote)
     model = None if args.no_model else run_claude
     sparks = _no_sparks if args.no_sparks else new_spark_pages
@@ -89,7 +94,7 @@ def _add_remote(add_argument: Callable[..., object]) -> None:
     )
 
 
-def _preview(remote: str, pages: list[str]) -> int:
+def _preview(remote: str, pages: list[str], compare: bool) -> int:
     with tempfile.TemporaryDirectory() as tmp:
         clone = VaultClone(Path(tmp) / "vault", remote)
         try:
@@ -97,7 +102,7 @@ def _preview(remote: str, pages: list[str]) -> int:
         except Unreachable as e:
             print(e, file=sys.stderr)
             return 1
-        lines = preview(clone.path, run_claude, pages)
+        lines = preview(clone.path, run_claude, pages, compare)
     return _print_preview(lines)
 
 

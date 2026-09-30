@@ -4,7 +4,9 @@ import pytest
 from test_triage import FakeModel, write
 
 from kd import __main__ as kd_main
+from kd import state as kd_state
 from kd.preview import preview
+from kd.triage import triage
 
 
 def test_preview_shows_proposals_for_named_items_and_writes_nothing(tmp_path: Path) -> None:
@@ -56,3 +58,26 @@ def test_preview_reads_a_local_vault_with_uncommitted_edits(
 def test_preview_rejects_a_vault_and_a_remote_together(tmp_path: Path) -> None:
     with pytest.raises(SystemExit):
         kd_main.main(["preview", "--vault", str(tmp_path), "--remote", "git://x/notes"])
+
+
+def test_compare_diffs_against_the_waiting_proposal(tmp_path: Path) -> None:
+    write(tmp_path, "Inbox/one", "x")
+    triage(tmp_path, FakeModel("Cues/X"), [])
+    lines = preview(tmp_path, FakeModel("Cues/Y"), [], compare=True)
+    assert lines[0] == "Inbox/one -> Cues/Y (about i1)"
+    assert "--- current" in lines and "-> Cues/X" in [line[1:] for line in lines if line.startswith("-")]
+    assert "+-> Cues/Y" in lines
+
+
+def test_compare_says_when_nothing_changed(tmp_path: Path) -> None:
+    write(tmp_path, "Inbox/one", "x")
+    triage(tmp_path, FakeModel("Cues/X"), [])
+    before = kd_state.load(tmp_path)
+    assert preview(tmp_path, FakeModel("Cues/X"), [], compare=True)[1] == "(same as the current proposal)"
+    assert kd_state.load(tmp_path) == before
+
+
+def test_compare_marks_items_with_no_waiting_proposal(tmp_path: Path) -> None:
+    write(tmp_path, "Inbox/one", "x")
+    lines = preview(tmp_path, FakeModel("Cues/X"), [], compare=True)
+    assert lines[1:4] == ["(no current proposal)", "-> Cues/X", "from i1"]

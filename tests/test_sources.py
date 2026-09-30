@@ -1,8 +1,11 @@
 import subprocess
 from typing import Any
 
+import pytest
+
 from kd import sources
-from kd.sources import excerpts, timestamped_youtube_links
+from kd.sources import Unavailable, excerpts, gather, timestamped_youtube_links
+from kd.vault import InboxItem
 
 VIDEO = "https://m.youtube.com/watch?v=LlgiOCmFG_w&t=1238"
 
@@ -35,9 +38,37 @@ def test_yt_transcript_failure_gives_none(monkeypatch: Any) -> None:
     assert sources.yt_transcript(VIDEO) is None
 
 
-def test_yt_transcript_missing_gives_none(monkeypatch: Any) -> None:
+def test_yt_transcript_missing_is_unavailable(monkeypatch: Any) -> None:
     def missing(cmd: list[str], **kwargs: Any) -> subprocess.CompletedProcess[str]:
         raise FileNotFoundError(cmd[0])
 
     monkeypatch.setattr(subprocess, "run", missing)
-    assert sources.yt_transcript(VIDEO) is None
+    with pytest.raises(Unavailable, match="did not run"):
+        sources.yt_transcript(VIDEO)
+
+
+def test_yt_transcript_try_later_is_unavailable(monkeypatch: Any) -> None:
+    def blocked(cmd: list[str], **kwargs: Any) -> subprocess.CompletedProcess[str]:
+        return subprocess.CompletedProcess(
+            cmd, 3, stdout="", stderr="yt-transcript: try later: IpBlocked\nmore"
+        )
+
+    monkeypatch.setattr(subprocess, "run", blocked)
+    with pytest.raises(Unavailable, match=r"^yt-transcript: try later: IpBlocked$"):
+        sources.yt_transcript(VIDEO)
+
+
+def test_gather_holds_back_only_the_items_it_cant_fetch_now() -> None:
+    def fetch(url: str) -> str | None:
+        if "blocked" in url:
+            raise Unavailable("IpBlocked")
+        return f"said at {url}"
+
+    items = [
+        InboxItem("Inbox/ok", f"Todo: a\n{VIDEO}", "d"),
+        InboxItem("Inbox/held", "Todo: b\nhttps://youtu.be/blocked00?t=5", "d"),
+        InboxItem("Inbox/plain", "Todo: take out the trash", "d"),
+    ]
+    found, held = gather(items, fetch)
+    assert found == {"Inbox/ok": f"Transcript around {VIDEO}:\n\nsaid at {VIDEO}"}
+    assert held == {"Inbox/held": "IpBlocked"}

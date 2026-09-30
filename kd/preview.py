@@ -11,6 +11,7 @@ from pathlib import Path
 
 from kd import state
 from kd.propose import Model, propose
+from kd.sources import Fetch, gather, yt_transcript
 from kd.state import Proposal
 from kd.vault import content_pages, inbox_items
 
@@ -32,7 +33,9 @@ def _compared(p: Proposal, current: Proposal | None) -> list[str]:
     return diff or ["(same as the current proposal)"]
 
 
-def preview(vault: Path, model: Model, names: list[str], compare: bool = False) -> list[str]:
+def preview(
+    vault: Path, model: Model, names: list[str], compare: bool = False, fetch: Fetch = yt_transcript
+) -> list[str]:
     """Output lines for the named Inbox pages, or for all of them when `names` is empty."""
     items = inbox_items(vault)
     known = {item.page for item in items}
@@ -41,7 +44,14 @@ def preview(vault: Path, model: Model, names: list[str], compare: bool = False) 
     chosen = [item for item in items if not names or item.page in names]
     if not chosen:
         return ["the Inbox is empty"]
-    proposals, problems = propose(chosen, content_pages(vault), model, set(), date.today())
+    sources, held = gather(chosen, fetch)
+    held_lines = [
+        f"problem: can't fetch the source for {page} now: {reason}" for page, reason in held.items()
+    ]
+    chosen = [item for item in chosen if item.page not in held]
+    if not chosen:
+        return held_lines
+    proposals, problems = propose(chosen, content_pages(vault), model, set(), date.today(), sources)
     waiting = {p.item: p for p in state.load(vault).proposals}
     lines: list[str] = []
     for p in proposals:
@@ -52,4 +62,4 @@ def preview(vault: Path, model: Model, names: list[str], compare: bool = False) 
         else:
             lines.extend(_body(p)[1:])
         lines.append("")
-    return lines + [f"problem: {problem}" for problem in problems]
+    return lines + held_lines + [f"problem: {problem}" for problem in problems]

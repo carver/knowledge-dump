@@ -15,6 +15,7 @@ from pathlib import Path
 from kd import triage_page
 from kd.pages import TRIAGE, linkable, page_path
 from kd.propose import Model, ModelError, _one_line, propose
+from kd.sources import Fetch, gather, yt_transcript
 from kd.state import Proposal, State, load, state_path
 from kd.vault import (
     InboxItem,
@@ -152,14 +153,23 @@ def _needing_proposals(state: State, items: list[InboxItem], report: Report) -> 
     return [i for i in todo if linkable(i.page)]
 
 
-def _propose_for(vault: Path, state: State, todo: list[InboxItem], model: Model, report: Report) -> None:
+def _propose_for(
+    vault: Path, state: State, todo: list[InboxItem], model: Model, fetch: Fetch, report: Report
+) -> None:
     """Add proposals for `todo`. Items the model had nothing usable for get parked.
 
     If the model call itself fails, nothing is parked, so the next run tries again.
+    Items whose source can't be fetched now are held back, unparked, for the same reason.
     """
+    sources, held = gather(todo, fetch)
+    for page, reason in held.items():
+        report.problems.append(f"holding {page} until its source can be fetched: {reason}")
+    todo = [item for item in todo if item.page not in held]
+    if not todo:
+        return
     taken = {p.id for p in state.proposals}
     try:
-        new, problems = propose(todo, content_pages(vault), model, taken, date.today())
+        new, problems = propose(todo, content_pages(vault), model, taken, date.today(), sources)
     except (ModelError, OSError, subprocess.TimeoutExpired, ValueError) as e:
         report.problems.append(f"model call failed, will retry next run: {e}")
         return
@@ -171,7 +181,11 @@ def _propose_for(vault: Path, state: State, todo: list[InboxItem], model: Model,
 
 
 def triage(
-    vault: Path, model: Model | None, new_pages: list[NewPage], repropose: frozenset[str] = frozenset()
+    vault: Path,
+    model: Model | None,
+    new_pages: list[NewPage],
+    repropose: frozenset[str] = frozenset(),
+    fetch: Fetch = yt_transcript,
 ) -> Report:
     """Run one pass. With `model` None, nothing new is proposed.
 
@@ -193,7 +207,7 @@ def triage(
 
     todo = _needing_proposals(state, items, report)
     if todo and model is not None:
-        _propose_for(vault, state, todo, model, report)
+        _propose_for(vault, state, todo, model, fetch, report)
 
     write_if_changed(triage_file, triage_page.render(state.proposals))
     write_if_changed(state_path(vault), state.to_json())

@@ -167,7 +167,7 @@ def test_prompt_puts_source_material_under_its_item() -> None:
     assert "Source material" not in two
 
 
-def test_propose_fetches_sources_for_the_items() -> None:
+def test_propose_puts_each_pages_sources_under_its_item() -> None:
     url = "https://youtu.be/abc?t=90"
     items = [InboxItem("Inbox/v", f"Todo: try it\nSource: {url}", "d")]
     prompts: list[str] = []
@@ -176,5 +176,5 @@ def test_propose_fetches_sources_for_the_items() -> None:
         prompts.append(prompt)
         return {"proposals": []}
 
-    propose(items, [], model, set(), date(2026, 9, 28), fetch=lambda u: f"[1:30] said at {u}")
-    assert f"[1:30] said at {url}" in prompts[0]
+    propose(items, [], model, set(), date(2026, 9, 28), {"Inbox/v": f"[1:30] said at {url}"})
+    assert f"#### Source material for i1\n\n[1:30] said at {url}" in prompts[0]

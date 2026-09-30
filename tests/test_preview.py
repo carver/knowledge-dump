@@ -81,3 +81,17 @@ def test_compare_marks_items_with_no_waiting_proposal(tmp_path: Path) -> None:
     write(tmp_path, "Inbox/one", "x")
     lines = preview(tmp_path, FakeModel("Cues/X"), [], compare=True)
     assert lines[1:4] == ["(no current proposal)", "-> Cues/X", "from i1"]
+
+
+def test_preview_reports_items_whose_source_is_blocked(tmp_path: Path) -> None:
+    from kd.sources import Unavailable
+
+    write(tmp_path, "Inbox/video", "Todo: try it https://youtu.be/LlgiOCmFG_w?t=90")
+
+    def blocked(url: str) -> str | None:
+        raise Unavailable("IpBlocked")
+
+    model = FakeModel()
+    lines = preview(tmp_path, model, [], fetch=blocked)
+    assert lines == ["problem: can't fetch the source for Inbox/video now: IpBlocked"]
+    assert model.calls == 0

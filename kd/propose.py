@@ -9,7 +9,6 @@ from pathlib import Path
 from typing import Any
 
 from kd.pages import name_problem
-from kd.sources import Fetch, excerpts, yt_transcript
 from kd.state import Proposal
 from kd.vault import InboxItem
 
@@ -173,8 +172,9 @@ def propose(
     model: Model,
     taken_ids: set[str],
     today: date,
-    fetch: Fetch = yt_transcript,
+    sources: dict[str, str] | None = None,
 ) -> tuple[list[Proposal], list[str]]:
+    """`sources` maps an Inbox page to source material fetched for it (see kd.sources)."""
     keyed = {f"i{n}": item for n, item in enumerate(items, start=1)}
-    sources = {key: excerpts(item.text, fetch) for key, item in keyed.items()}
-    return to_proposals(model(build_prompt(keyed, pages, today, sources)), keyed, taken_ids)
+    by_key = {key: (sources or {}).get(item.page, "") for key, item in keyed.items()}
+    return to_proposals(model(build_prompt(keyed, pages, today, by_key)), keyed, taken_ids)

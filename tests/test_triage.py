@@ -338,3 +338,23 @@ def test_emptying_an_edited_why_keeps_the_old_one(tmp_path: Path) -> None:
     (tmp_path / "Triage.md").write_text(emptied)
     triage(tmp_path, WhyModel(), [])
     assert only_proposal(tmp_path).why == proposal.why
+
+
+def test_an_item_whose_source_is_blocked_waits_unparked_for_a_later_run(tmp_path: Path) -> None:
+    from kd.sources import Unavailable
+
+    write(tmp_path, "Inbox/video", "Todo: try it\nSource: https://youtu.be/LlgiOCmFG_w?t=90")
+    write(tmp_path, "Inbox/plain", "Debezium for CDC")
+
+    def blocked(url: str) -> str | None:
+        raise Unavailable("IpBlocked")
+
+    model = FakeModel()
+    report = triage(tmp_path, model, [], fetch=blocked)
+    assert [p.item for p in kd_state.load(tmp_path).proposals] == ["Inbox/plain"]
+    assert report.problems == ["holding Inbox/video until its source can be fetched: IpBlocked"]
+    assert "Inbox/video" not in kd_state.load(tmp_path).parked
+
+    triage(tmp_path, model, [], fetch=lambda url: "[1:30] the argument")
+    assert sorted(p.item for p in kd_state.load(tmp_path).proposals) == ["Inbox/plain", "Inbox/video"]
+    assert model.calls == 2

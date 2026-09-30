@@ -2,8 +2,10 @@
 
 Each proposal is one top-level task line ending in its id, like `kd:3f9a1c`.
 A proposal to file has a nested task under it ending in `kd:3f9a1c:discard`,
-for throwing the note away instead. The triage agent rewrites the page. The
-user only ticks boxes or deletes lines.
+for throwing the note away instead. A proposal with a Why has another, ticked
+to start with, ending in `kd:3f9a1c:why`: untick it, or delete it, to file the
+note without its Why line. The triage agent rewrites the page. The user only
+ticks boxes or deletes lines.
 """
 
 import re
@@ -23,12 +25,14 @@ _ANSWERS: dict[tuple[bool, bool], Answer] = {
 PREVIEW_LINES = 6
 _TASK = re.compile(r"^- \[([ xX])\] .*`kd:([0-9a-f]{6})`\s*$")
 _DISCARD = re.compile(r"^  - \[([ xX])\] .*`kd:([0-9a-f]{6}):discard`\s*$")
+_WHY = re.compile(r"^  - \[([ xX])\] .*`kd:([0-9a-f]{6}):why`\s*$")
 
 HEADER = """# Triage
 
 Proposals from the triage agent for pages in the Inbox. Tick one and the next run applies it, \
 or tick "Discard the note instead" to delete its Inbox page. \
-Delete a proposal to turn it down; its page stays in the Inbox.
+Delete a proposal to turn it down; its page stays in the Inbox. \
+Untick "Keep the why" to file a to-do without its Why line.
 """
 
 
@@ -51,6 +55,9 @@ def render(proposals: list[Proposal]) -> str:
         body.append(_line(proposal))
         if proposal.action == "file":
             body.append(f"  - [ ] Discard the note instead `kd:{proposal.id}:discard`")
+        if proposal.why:
+            box = "x" if proposal.keep_why else " "
+            body.append(f"  - [{box}] Keep the why: {proposal.why} `kd:{proposal.id}:why`")
         if proposal.content:
             body.extend(_preview(proposal.content))
     return HEADER + "\n" + ("\n".join(body) if body else "_Nothing to triage._") + "\n"
@@ -64,3 +71,8 @@ def parse(text: str) -> dict[str, Answer]:
     """Proposal id -> what's ticked, for every proposal whose main line is still on the page."""
     discard = _ticked(_DISCARD, text)
     return {pid: _ANSWERS[apply, discard.get(pid, False)] for pid, apply in _ticked(_TASK, text).items()}
+
+
+def kept_whys(text: str) -> set[str]:
+    """Ids of the proposals whose "Keep the why" box is on the page and ticked."""
+    return {pid for pid, ticked in _ticked(_WHY, text).items() if ticked}

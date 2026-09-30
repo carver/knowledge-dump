@@ -73,9 +73,20 @@ def _import_pages(vault: Path, state: State, new_pages: list[NewPage], report: R
         report.imported.append(name)
 
 
+def with_why(content: str, why: str) -> str:
+    """`content` with a `Why:` line after its first line, nested under it when that line is a list item."""
+    first, _, rest = content.partition("\n")
+    indent = "  " if first.lstrip().startswith(("- ", "* ")) else ""
+    lead = first[: len(first) - len(first.lstrip())]
+    return f"{first}\n{lead}{indent}Why: {why}\n{rest}"
+
+
 def _apply(vault: Path, proposal: Proposal) -> None:
     if proposal.action == "file" and proposal.page and proposal.content:
-        append_to_page(vault, proposal.page, proposal.content)
+        content = proposal.content
+        if proposal.why and proposal.keep_why:
+            content = with_why(content, proposal.why)
+        append_to_page(vault, proposal.page, content)
     remove_inbox_page(vault, proposal.item)
 
 
@@ -93,14 +104,19 @@ def _withdraw(state: State, targets: set[str], report: Report) -> None:
             report.withdrawn.append(page)
 
 
-def _review(vault: Path, state: State, ticks: dict[str, triage_page.Answer] | None, report: Report) -> None:
-    """Act on the user's ticks and deletions for proposals shown last time.
+def _review(vault: Path, state: State, page_text: str | None, report: Report) -> None:
+    """Act on the user's ticks and deletions on the Triage page for proposals shown last time.
 
-    With both boxes of a proposal ticked, neither is done; the page is rewritten unticked.
+    With no Triage page, nothing is parked. With both boxes of a proposal ticked,
+    neither is done; the page is rewritten unticked.
     """
+    ticks = triage_page.parse(page_text) if page_text is not None else None
+    kept = triage_page.kept_whys(page_text) if page_text is not None else None
     items = {item.page: item for item in inbox_items(vault)}
     waiting = []
     for proposal in state.proposals:
+        if kept is not None and proposal.why:
+            proposal = replace(proposal, keep_why=proposal.id in kept)
         item = items.get(proposal.item)
         answer = "none" if ticks is None else ticks.get(proposal.id)
         if item is None or item.digest != proposal.digest:
@@ -164,8 +180,8 @@ def triage(
     _withdraw(state, set(repropose), report)
 
     triage_file = page_path(vault, TRIAGE)
-    ticks = triage_page.parse(triage_file.read_text(encoding="utf-8")) if triage_file.exists() else None
-    _review(vault, state, ticks, report)
+    page_text = triage_file.read_text(encoding="utf-8") if triage_file.exists() else None
+    _review(vault, state, page_text, report)
 
     items = inbox_items(vault)
     current = {item.page: item.digest for item in items}

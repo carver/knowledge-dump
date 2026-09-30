@@ -1,3 +1,5 @@
+from dataclasses import replace
+
 from hypothesis import given
 from hypothesis import strategies as st
 
@@ -96,3 +98,34 @@ def test_empty_page_says_nothing_to_triage() -> None:
 
 def test_uppercase_tick_counts() -> None:
     assert triage_page.parse("- [X] File into [[P]]: s ([[Inbox/a]]) `kd:abcdef`") == {"abcdef": "apply"}
+
+
+def with_why(keep: bool = True) -> Proposal:
+    return Proposal(
+        id="aaaaaa",
+        item="Inbox/a",
+        digest="d",
+        action="file",
+        summary="s",
+        page="P",
+        content="- [ ] Try it #queue\n",
+        why="It saves review time.",
+        keep_why=keep,
+    )
+
+
+def test_why_box_is_ticked_to_start_with() -> None:
+    lines = triage_page.render([with_why()]).splitlines()
+    assert "  - [x] Keep the why: It saves review time. `kd:aaaaaa:why`" in lines
+    assert triage_page.kept_whys("\n".join(lines)) == {"aaaaaa"}
+    assert triage_page.parse("\n".join(lines)) == {"aaaaaa": "none"}
+
+
+def test_an_unticked_why_box_renders_unticked_and_parses_as_dropped() -> None:
+    text = triage_page.render([with_why(keep=False)])
+    assert "  - [ ] Keep the why: It saves review time. `kd:aaaaaa:why`" in text
+    assert triage_page.kept_whys(text) == set()
+
+
+def test_no_why_box_without_a_why() -> None:
+    assert ":why`" not in triage_page.render([replace(with_why(), why=None)])

@@ -9,6 +9,7 @@ from pathlib import Path
 from typing import Any
 
 from kd.pages import name_problem
+from kd.sources import Fetch, excerpts, yt_transcript
 from kd.state import Proposal
 from kd.vault import InboxItem
 
@@ -16,6 +17,7 @@ PROMPT_TEMPLATE = Path(__file__).with_name("triage-prompt.md")
 MAX_ITEM_CHARS = 6000
 MAX_PAGES_LISTED = 1000
 MAX_SUMMARY_CHARS = 160
+MAX_WHY_CHARS = 400
 MAX_CONTENT_CHARS = 20_000
 TIMEOUT_SECONDS = 600
 
@@ -32,6 +34,7 @@ SCHEMA = {
                     "summary": {"type": "string"},
                     "page": {"type": "string"},
                     "content": {"type": "string"},
+                    "why": {"type": "string"},
                 },
                 "required": ["item", "action", "summary"],
             },
@@ -58,7 +61,10 @@ class ModelError(RuntimeError):
     """The model call failed or returned something that isn't structured output."""
 
 
-def build_prompt(items: dict[str, InboxItem], pages: list[str], today: date) -> str:
+def build_prompt(
+    items: dict[str, InboxItem], pages: list[str], today: date, sources: dict[str, str] | None = None
+) -> str:
+    """The triage prompt. `sources` maps an item key to source material fetched for it."""
     listed = pages[:MAX_PAGES_LISTED]
     page_lines = "\n".join(f"- {p}" for p in listed) or "(none yet)"
     if len(pages) > len(listed):
@@ -68,7 +74,10 @@ def build_prompt(items: dict[str, InboxItem], pages: list[str], today: date) -> 
         text = item.text
         if len(text) > MAX_ITEM_CHARS:
             text = text[:MAX_ITEM_CHARS] + "\n[… cut]"
-        item_blocks.append(f"### {key}: {item.page}\n\n{text.strip() or '(empty page)'}")
+        block = f"### {key}: {item.page}\n\n{text.strip() or '(empty page)'}"
+        if source := (sources or {}).get(key):
+            block += f"\n\n#### Source material for {key}\n\n{source}"
+        item_blocks.append(block)
     template = PROMPT_TEMPLATE.read_text(encoding="utf-8")
     filled = template.replace("{today}", today.isoformat()).replace("{pages}", page_lines)
     return filled.replace("{items}", "\n\n".join(item_blocks))
@@ -88,9 +97,9 @@ def run_claude(prompt: str) -> dict[str, Any]:
     return output
 
 
-def _one_line(text: str) -> str:
+def _one_line(text: str, limit: int = MAX_SUMMARY_CHARS) -> str:
     flat = " ".join(text.replace("`", "'").split())
-    return flat[:MAX_SUMMARY_CHARS]
+    return flat[:limit]
 
 
 def _check(raw: Any, items: dict[str, InboxItem], seen: set[str]) -> tuple[str, dict[str, Any]] | str:
@@ -116,7 +125,14 @@ def _check(raw: Any, items: dict[str, InboxItem], seen: set[str]) -> tuple[str, 
         return f"{key}: bad page {page!r}: {problem if isinstance(page, str) else 'missing'}"
     if not isinstance(content, str) or not content.strip() or len(content) > MAX_CONTENT_CHARS:
         return f"{key}: content must be 1 to {MAX_CONTENT_CHARS} characters"
-    return key, {"action": "file", "summary": summary, "page": page, "content": content.strip("\n") + "\n"}
+    why = _one_line(str(raw.get("why") or ""), MAX_WHY_CHARS) or None
+    return key, {
+        "action": "file",
+        "summary": summary,
+        "page": page,
+        "content": content.strip("\n") + "\n",
+        "why": why,
+    }
 
 
 def new_id(taken: Iterable[str]) -> str:
@@ -152,7 +168,13 @@ def to_proposals(
 
 
 def propose(
-    items: list[InboxItem], pages: list[str], model: Model, taken_ids: set[str], today: date
+    items: list[InboxItem],
+    pages: list[str],
+    model: Model,
+    taken_ids: set[str],
+    today: date,
+    fetch: Fetch = yt_transcript,
 ) -> tuple[list[Proposal], list[str]]:
     keyed = {f"i{n}": item for n, item in enumerate(items, start=1)}
-    return to_proposals(model(build_prompt(keyed, pages, today)), keyed, taken_ids)
+    sources = {key: excerpts(item.text, fetch) for key, item in keyed.items()}
+    return to_proposals(model(build_prompt(keyed, pages, today, sources)), keyed, taken_ids)

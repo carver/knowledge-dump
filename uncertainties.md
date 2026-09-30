@@ -45,3 +45,11 @@ Options: a `#queue` task on the topic page, with the Queue page as a query; one 
 ## Queue order
 
 Options: by topic page, then position; by the `added` date. Picked: topic, then position, so related items sit together and each topic reads oldest first. Against: you can't see what's been waiting longest across topics. `added` is on every task, so a second query can sort by it.
+
+## Where a to-do's Why comes from
+
+Options: the model drafts it from the note alone; fetch the source first (YouTube captions around the timestamp); ask the user every time. Picked: fetch YouTube captions for every Item with a timestamped YouTube link, then let the model draft the Why for `Todo:` items only, or copy a `Why:` line the user wrote. The note alone rarely says why, and a guess reads as a reason the user never had. Against: captions cost a network call per link on each triage run that proposes, including for cues and reference notes that get no Why. Articles and podcasts get no source fetch yet, so their Whys come from the note or are left out.
+
+## The Why box on the Triage page
+
+Options: put the Why inside the filed content and let the user edit the Item to change it; keep it separate with a pre-ticked "Keep the why" box. Picked: separate, pre-ticked. Unticking it is remembered in the state file, so the next run's rewrite of the page doesn't tick it again. Deleting the line counts as unticking. Against: to change the Why's wording you still edit the Item (add a `Why:` line), which withdraws the proposal and asks the model again.

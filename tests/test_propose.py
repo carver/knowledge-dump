@@ -5,7 +5,7 @@ from typing import Any
 
 import pytest
 
-from kd.propose import SCHEMA, ModelError, build_prompt, run_claude, to_proposals
+from kd.propose import MAX_WHY_CHARS, SCHEMA, ModelError, build_prompt, propose, run_claude, to_proposals
 from kd.vault import InboxItem, digest
 
 ITEMS = {
@@ -119,3 +119,62 @@ def test_run_claude_raises_model_error_when_the_call_fails(monkeypatch: Any) -> 
     fake_claude_json(monkeypatch, returncode=1, stderr="claude-json: claude exited 1: overloaded")
     with pytest.raises(ModelError, match="overloaded"):
         run_claude("the prompt")
+
+
+def test_why_is_kept_flattened_and_capped() -> None:
+    proposals, _ = check(
+        {
+            "proposals": [
+                {
+                    "item": "i1",
+                    "action": "file",
+                    "summary": "s",
+                    "page": "P",
+                    "content": "c",
+                    "why": "a\n`b`",
+                },
+                {
+                    "item": "i2",
+                    "action": "file",
+                    "summary": "s",
+                    "page": "P",
+                    "content": "c",
+                    "why": "x" * 999,
+                },
+            ]
+        }
+    )
+    assert proposals[0].why == "a 'b'"
+    assert proposals[1].why == "x" * MAX_WHY_CHARS
+
+
+def test_no_why_or_a_blank_one_is_none_and_discards_drop_it() -> None:
+    proposals, _ = check(
+        {
+            "proposals": [
+                {"item": "i1", "action": "file", "summary": "s", "page": "P", "content": "c", "why": "  "},
+                {"item": "i2", "action": "discard", "summary": "s", "why": "because"},
+            ]
+        }
+    )
+    assert [p.why for p in proposals] == [None, None]
+
+
+def test_prompt_puts_source_material_under_its_item() -> None:
+    prompt = build_prompt(ITEMS, [], date(2026, 9, 28), {"i1": "Transcript around u:\n\n[0:05] hi"})
+    one, two = prompt.split("### i2: ")
+    assert "#### Source material for i1\n\nTranscript around u:\n\n[0:05] hi" in one
+    assert "Source material" not in two
+
+
+def test_propose_fetches_sources_for_the_items() -> None:
+    url = "https://youtu.be/abc?t=90"
+    items = [InboxItem("Inbox/v", f"Todo: try it\nSource: {url}", "d")]
+    prompts: list[str] = []
+
+    def model(prompt: str) -> dict[str, Any]:
+        prompts.append(prompt)
+        return {"proposals": []}
+
+    propose(items, [], model, set(), date(2026, 9, 28), fetch=lambda u: f"[1:30] said at {u}")
+    assert f"[1:30] said at {url}" in prompts[0]

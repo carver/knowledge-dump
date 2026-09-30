@@ -6,7 +6,7 @@ import pytest
 
 from kd import state as kd_state
 from kd.propose import ModelError
-from kd.triage import NewPage, triage
+from kd.triage import NewPage, triage, with_why
 
 
 class FakeModel:
@@ -237,3 +237,81 @@ def test_repropose_by_name_unparks_the_item(tmp_path: Path) -> None:
 def test_repropose_of_something_unknown_is_a_problem(tmp_path: Path) -> None:
     report = triage(tmp_path, FakeModel(), [], repropose=frozenset({"abc123"}))
     assert report.problems == ["nothing to repropose for 'abc123'"]
+
+
+class WhyModel:
+    """Files every item as a to-do with a Why."""
+
+    def __call__(self, prompt: str) -> dict[str, Any]:
+        keys = re.findall(r"^### (i\d+): ", prompt, flags=re.MULTILINE)
+        return {
+            "proposals": [
+                {
+                    "item": k,
+                    "action": "file",
+                    "summary": "a to-do",
+                    "page": "AI coding workflow",
+                    "content": "- [ ] Install retro #queue\n  Source: [v](https://youtu.be/x)\n",
+                    "why": "A comment written twice means the process is wrong.",
+                }
+                for k in keys
+            ]
+        }
+
+
+def untick(vault: Path, mark: str) -> None:
+    text = triage_text(vault)
+    lines = [
+        line.replace("- [x]", "- [ ]") if line.endswith(f"`kd:{mark}`") else line
+        for line in text.splitlines()
+    ]
+    (vault / "Triage.md").write_text("\n".join(lines) + "\n")
+
+
+def filed_page(vault: Path) -> str:
+    return (vault / "AI coding workflow.md").read_text()
+
+
+def test_with_why_nests_under_a_task_and_follows_a_plain_line() -> None:
+    assert with_why("- [ ] Do it #queue\n  Source: s\n", "Because.") == (
+        "- [ ] Do it #queue\n  Why: Because.\n  Source: s\n"
+    )
+    assert with_why("Plain note\n", "Because.") == "Plain note\nWhy: Because.\n"
+
+
+def test_a_kept_why_is_filed_under_the_task(tmp_path: Path) -> None:
+    write(tmp_path, "Inbox/todo", "Todo: install retro")
+    triage(tmp_path, WhyModel(), [])
+    proposal = only_proposal(tmp_path)
+    assert f"  - [x] Keep the why: {proposal.why} `kd:{proposal.id}:why`" in triage_text(tmp_path)
+    tick(tmp_path, proposal.id)
+    triage(tmp_path, WhyModel(), [])
+    assert (
+        "- [ ] Install retro #queue\n  Why: A comment written twice means the process is wrong.\n  Source:"
+        in (filed_page(tmp_path))
+    )
+
+
+def test_an_unticked_why_is_left_out_and_stays_unticked(tmp_path: Path) -> None:
+    write(tmp_path, "Inbox/todo", "Todo: install retro")
+    triage(tmp_path, WhyModel(), [])
+    proposal_id = only_proposal(tmp_path).id
+    untick(tmp_path, f"{proposal_id}:why")
+    triage(tmp_path, WhyModel(), [])
+    assert "  - [ ] Keep the why: " in triage_text(tmp_path)
+    tick(tmp_path, proposal_id)
+    triage(tmp_path, WhyModel(), [])
+    assert "Why:" not in filed_page(tmp_path)
+
+
+def test_deleting_the_why_line_drops_the_why(tmp_path: Path) -> None:
+    write(tmp_path, "Inbox/todo", "Todo: install retro")
+    triage(tmp_path, WhyModel(), [])
+    proposal_id = only_proposal(tmp_path).id
+    lines = [
+        line for line in triage_text(tmp_path).splitlines() if not line.endswith(f"`kd:{proposal_id}:why`")
+    ]
+    (tmp_path / "Triage.md").write_text("\n".join(lines) + "\n")
+    tick(tmp_path, proposal_id)
+    triage(tmp_path, WhyModel(), [])
+    assert "Why:" not in filed_page(tmp_path)

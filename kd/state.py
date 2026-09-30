@@ -25,6 +25,10 @@ class Proposal:
     summary: str
     page: str | None = None
     content: str | None = None
+    # Why the user wants a to-do done. Applied as a `Why:` line under the task
+    # unless the user unticks "Keep the why", which sets keep_why to False.
+    why: str | None = None
+    keep_why: bool = True
 
 
 @dataclass

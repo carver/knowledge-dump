@@ -24,6 +24,8 @@ def preview(vault: Path, model: Model, names: list[str]) -> list[str]:
     for p in proposals:
         target = p.page if p.action == "file" else "discard"
         lines.append(f"{p.item} -> {target} ({p.summary})")
+        if p.why:
+            lines.append(f"Why: {p.why}")
         if p.content:
             lines.extend(p.content.rstrip("\n").splitlines())
         lines.append("")

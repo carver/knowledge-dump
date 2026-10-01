@@ -58,6 +58,8 @@ python3 -m kd triage --repropose 3f9a1c     # drop a proposal and ask again, e.g
 python3 -m kd preview 'Inbox/Spark x'       # print what triage would propose; changes nothing
 python3 -m kd preview --vault ~/v          # same, on a local vault folder with uncommitted edits
 python3 -m kd preview --compare            # diff each proposal against the one waiting on the Triage page
+python3 -m kd todos                        # open tasks on topic pages, each with an id
+python3 -m kd done 3f9a1c --done-in repo@4c1e2a9 [--why …] [--learned …]   # tick one, record its commit, push
 python3 host/kd_host.py -h                 # host side: init, autocommit, merge-agent
 ```
 

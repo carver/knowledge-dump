@@ -12,6 +12,7 @@ import kd_host
 import pytest
 from test_triage import FakeModel, tick
 
+from kd import __main__ as kd_main
 from kd import state as kd_state
 from kd.gitsync import VaultClone
 from kd.run import run
@@ -191,3 +192,25 @@ def test_broken_spark_source_does_not_stop_triage(host_vault: tuple[Path, str], 
     assert run(VaultClone(tmp_path / "clone", url), FakeModel(), missing_checkout, logs.append)
     assert any("skipping Sparks" in line for line in logs)
     assert kd_state.load(vault).proposals
+
+
+def test_kd_done_ticks_a_task_on_the_host(
+    host_vault: tuple[Path, str], capsys: pytest.CaptureFixture[str]
+) -> None:
+    vault, url = host_vault
+    (vault / "Topic.md").write_text("- [ ] Do it #queue\n  Source: s\n")
+    kd_host.autocommit(vault)
+
+    assert kd_main.main(["todos", "--remote", url]) == 0
+    listed = capsys.readouterr().out
+    todo_id = listed.split()[0]
+    assert listed == f"{todo_id}  Topic\n- [ ] Do it #queue\n  Source: s\n\n"
+
+    args = ["done", todo_id, "--done-in", "r@1", "--why", "w", "--date", "2026-10-01", "--remote", url]
+    assert kd_main.main(args) == 0
+    assert "merged into main" in capsys.readouterr().out
+    assert (vault / "Topic.md").read_text() == (
+        "- [x] Do it #queue [done: 2026-10-01]\n  Why: w\n  Source: s\n  Done in: r@1\n"
+    )
+    assert kd_main.main(args) == 1
+    assert "no open task" in capsys.readouterr().err

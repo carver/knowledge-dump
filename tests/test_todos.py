@@ -103,11 +103,20 @@ def test_mark_done_keeps_a_nested_task_indented(tmp_path: Path) -> None:
     )
 
 
-def test_mark_done_refuses_a_second_why_and_multiline_values(tmp_path: Path) -> None:
+def test_mark_done_replaces_an_existing_why_in_place(tmp_path: Path) -> None:
     write(tmp_path, "W", WORKFLOW)
     todo = open_todos(tmp_path)[0]
-    with pytest.raises(TodoError, match="already has a Why"):
-        mark_done(tmp_path, todo, "r@1", TODAY, why="another")
+    mark_done(tmp_path, todo, "r@1", TODAY, why="the confirmed reason")
+    text = (tmp_path / "W.md").read_text()
+    assert "  Why: the confirmed reason\n" in text
+    assert "never write the same comment twice" not in text
+    assert text.count("Why:") == 1
+    assert text.index("Why:") < text.index("Done in:")
+
+
+def test_mark_done_refuses_multiline_values(tmp_path: Path) -> None:
+    write(tmp_path, "W", WORKFLOW)
+    todo = open_todos(tmp_path)[0]
     with pytest.raises(TodoError, match="one line"):
         mark_done(tmp_path, todo, "r@1", TODAY, learned=["two\nlines"])
     assert (tmp_path / "W.md").read_text() == WORKFLOW

@@ -85,12 +85,12 @@ def main(argv: list[str] | None = None) -> int:
     done_cmd = commands.add_parser(
         "done",
         help="tick an open task and record the work that did it",
-        description="Tick the task, add [done: DATE], a Why if it has none, `Done in:` "
+        description="Tick the task, add [done: DATE], set its Why, add `Done in:` "
         "and any `Learned:` lines, then push to the host and wait for the merge.",
     )
     done_cmd.add_argument("id", help="the task's id, from `kd todos`")
     done_cmd.add_argument("--done-in", required=True, metavar="REF", help="like repo@4c1e2a9 or repo@a1..b2")
-    done_cmd.add_argument("--why", help="add this Why; refused if the task already has one")
+    done_cmd.add_argument("--why", help="the confirmed Why; replaces the task's Why: line, or adds one")
     done_cmd.add_argument(
         "--learned", action="append", default=[], metavar="TEXT", help="add a Learned: line; repeatable"
     )

@@ -78,12 +78,13 @@ def find(vault: Path, todo_id: str) -> Todo:
 def mark_done(
     vault: Path, todo: Todo, done_in: str, today: str, why: str | None = None, learned: Sequence[str] = ()
 ) -> None:
-    """Tick the task and add `[done: today]`, a Why if given, `Done in:` and any `Learned:` lines."""
+    """Tick the task and add `[done: today]`, `Done in:` and any `Learned:` lines.
+
+    A given Why replaces the task's `Why:` line, or goes first when it has none.
+    """
     for value in (done_in, why or "", *learned):
         if "\n" in value or "\r" in value:
             raise TodoError(f"each value must be one line: {value!r}")
-    if why and any(line.strip().startswith("Why:") for line in todo.lines[1:]):
-        raise TodoError(f"the task already has a Why: {todo.lines[0].strip()}")
 
     path = page_path(vault, todo.page)
     lines = path.read_text(encoding="utf-8").splitlines()
@@ -92,10 +93,18 @@ def mark_done(
         raise TodoError(f"{todo.page} changed since the task was read")
     nested = todo.indent + "  "
     ticked = lines[todo.line].replace("- [ ] ", "- [x] ", 1).rstrip() + f" [done: {today}]"
-    added_why = [f"{nested}Why: {why}"] if why else []
+    context = todo.lines[1:]
+    added_why = []
+    if why:
+        old = [i for i, line in enumerate(context) if line.strip().startswith("Why:")]
+        if old:
+            line = context[old[0]]
+            context[old[0]] = line[: _indent(line)] + f"Why: {why}"
+        else:
+            added_why = [f"{nested}Why: {why}"]
     record = [f"{nested}Done in: {done_in}"]
     if learned:
         record += [f"{nested}Learned:", *(f"{nested}  - {item}" for item in learned)]
-    block = [ticked, *added_why, *todo.lines[1:], *record]
+    block = [ticked, *added_why, *context, *record]
     lines[todo.line : end] = block
     path.write_text("\n".join(lines) + "\n", encoding="utf-8")

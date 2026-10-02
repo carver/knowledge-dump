@@ -13,7 +13,7 @@ It may include a mixture of:
 
 The main location that ties it all together is the **vault**: a git repo of markdown pages on the host (`~/notes`), served by [SilverBullet](https://silverbullet.md) to the phone and laptop over Tailscale. This repo holds the tooling only.
 
-Vocabulary is in [CONTEXT.md](CONTEXT.md), decisions in [docs/adr](docs/adr), the plan in [docs/slice-1.md](docs/slice-1.md), and judgment calls in [uncertainties.md](uncertainties.md).
+Vocabulary is in [GLOSSARY.md](GLOSSARY.md), decisions in [docs/adr](docs/adr), the plan in [docs/slice-1.md](docs/slice-1.md), and judgment calls in [uncertainties.md](uncertainties.md).
 
 ## How it fits together
 

@@ -1,6 +1,6 @@
 # knowledge-dump: notes for agents
 
-Read [CONTEXT.md](CONTEXT.md) for the vocabulary (Vault, Item, Triage, Proposal, Queue item). [README.md](README.md) explains how the pieces connect.
+Read [GLOSSARY.md](GLOSSARY.md) for the vocabulary (Vault, Item, Triage, Proposal, Queue item). [README.md](README.md) explains how the pieces connect.
 
 ## The live vault
 

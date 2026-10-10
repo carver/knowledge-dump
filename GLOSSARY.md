@@ -37,7 +37,7 @@ Something to read or research later. Triage files it on its topic page as a task
 _Avoid_: Reading list
 
 **To-do**:
-A Queue item from a note starting with `Todo:` or `To-do:`: something to do or change, not just read. It carries a Why, and Triage files it without waiting for a tick.
+A Queue item for something to do or change, not just read. It carries a Why. One from a note starting with `Todo:` or `To-do:` is filed without waiting for a tick; one Triage judged a to-do from an unmarked note waits for a tick.
 
 **Agent branch**:
 `agent`, the only branch the sandbox may push to. A hook on the host merges it into `main`.

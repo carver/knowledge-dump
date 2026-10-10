@@ -443,7 +443,9 @@ def test_a_waiting_todo_with_both_boxes_ticked_is_not_filed(tmp_path: Path) -> N
 
 
 def test_other_items_still_wait_for_a_tick(tmp_path: Path) -> None:
+    """Even one the model judges a to-do: only the user's own `Todo:` skips the tick."""
     write(tmp_path, "Inbox/read", "Read: the retro post")
     report = triage(tmp_path, WhyModel(), [])
     assert report.filed_todos == []
     assert (tmp_path / "Inbox/read.md").exists()
+    assert "Keep the why: A comment written twice" in triage_text(tmp_path)

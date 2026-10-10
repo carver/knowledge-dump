@@ -33,7 +33,8 @@ HEADER = """# Triage
 Proposals from the triage agent for pages in the Inbox. Tick one and the next run applies it, \
 or tick "Discard the note instead" to delete its Inbox page. \
 Delete a proposal to turn it down; its page stays in the Inbox. \
-To-dos are filed without waiting here, unless triage would discard one.
+To-dos you marked `Todo:` are filed without waiting here, unless triage would discard one. \
+Edit the text after "Keep the why:" to change the Why, or untick it to file without one.
 """
 
 

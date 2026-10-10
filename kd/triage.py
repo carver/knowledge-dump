@@ -88,7 +88,7 @@ def with_why(content: str, why: str) -> str:
     return f"{first}\n{lead}{indent}Why: {why}\n{rest}"
 
 
-def is_todo(text: str) -> bool:
+def _is_todo(text: str) -> bool:
     """Whether an Inbox item is a to-do: it starts with `Todo:` or `To-do:`, as in the triage prompt."""
     return text.lstrip().lower().startswith(("todo:", "to-do:"))
 
@@ -157,30 +157,30 @@ def _review(vault: Path, state: State, page_text: str | None, report: Report) ->
 
 def _needing_proposals(state: State, items: list[InboxItem], report: Report) -> list[InboxItem]:
     proposed = {p.item for p in state.proposals}
-    todo = [i for i in items if i.page not in proposed and state.parked.get(i.page) != i.digest]
-    for item in todo:
+    unproposed = [i for i in items if i.page not in proposed and state.parked.get(i.page) != i.digest]
+    for item in unproposed:
         if not linkable(item.page):
             report.problems.append(f"can't link to {item.page!r} from the Triage page; rename it")
-    return [i for i in todo if linkable(i.page)]
+    return [i for i in unproposed if linkable(i.page)]
 
 
 def _propose_for(
-    vault: Path, state: State, todo: list[InboxItem], model: Model, fetch: Fetch, report: Report
+    vault: Path, state: State, unproposed: list[InboxItem], model: Model, fetch: Fetch, report: Report
 ) -> None:
-    """Add proposals for `todo`. Items the model had nothing usable for get parked.
+    """Add proposals for `unproposed`. Items the model had nothing usable for get parked.
 
     If the model call itself fails, nothing is parked, so the next run tries again.
     Items whose source can't be fetched now are held back, unparked, for the same reason.
     """
-    sources, held = gather(todo, fetch)
+    sources, held = gather(unproposed, fetch)
     for page, reason in held.items():
         report.problems.append(f"holding {page} until its source can be fetched: {reason}")
-    todo = [item for item in todo if item.page not in held]
-    if not todo:
+    unproposed = [item for item in unproposed if item.page not in held]
+    if not unproposed:
         return
     taken = {p.id for p in state.proposals}
     try:
-        new, problems = propose(todo, content_pages(vault), model, taken, date.today(), sources)
+        new, problems = propose(unproposed, content_pages(vault), model, taken, date.today(), sources)
     except (ModelError, OSError, subprocess.TimeoutExpired, ValueError) as e:
         report.problems.append(f"model call failed, will retry next run: {e}")
         return
@@ -188,7 +188,7 @@ def _propose_for(
     report.proposed.extend(p.item for p in new)
     report.problems.extend(problems)
     proposed = {p.item for p in new}
-    state.parked.update({i.page: i.digest for i in todo if i.page not in proposed})
+    state.parked.update({i.page: i.digest for i in unproposed if i.page not in proposed})
 
 
 def _file_todos(
@@ -206,7 +206,7 @@ def _file_todos(
         if (
             proposal.action == "file"
             and proposal.id not in both_ticked
-            and is_todo(texts.get(proposal.item, ""))
+            and _is_todo(texts.get(proposal.item, ""))
         ):
             _apply(vault, proposal)
             report.filed_todos.append(f"{proposal.item} -> {proposal.page}")
@@ -242,9 +242,9 @@ def triage(
     current = {item.page: item.digest for item in items}
     state.parked = {page: d for page, d in state.parked.items() if current.get(page) == d}
 
-    todo = _needing_proposals(state, items, report)
-    if todo and model is not None:
-        _propose_for(vault, state, todo, model, fetch, report)
+    unproposed = _needing_proposals(state, items, report)
+    if unproposed and model is not None:
+        _propose_for(vault, state, unproposed, model, fetch, report)
     _file_todos(vault, state, items, both_ticked, report)
 
     write_if_changed(triage_file, triage_page.render(state.proposals))

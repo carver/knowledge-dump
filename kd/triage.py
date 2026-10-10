@@ -4,7 +4,8 @@ A pass:
 1. adds new Sparks to the Inbox as pages,
 2. reads the Triage page: applies ticked proposals, parks items whose proposal was deleted,
 3. asks the model about Inbox items with no proposal yet,
-4. rewrites the Triage page and the state file.
+4. files to-dos without waiting for a tick,
+5. rewrites the Triage page and the state file.
 """
 
 import subprocess
@@ -43,6 +44,7 @@ class NewPage:
 class Report:
     imported: list[str] = field(default_factory=list)
     applied: list[str] = field(default_factory=list)
+    filed_todos: list[str] = field(default_factory=list)
     parked: list[str] = field(default_factory=list)
     withdrawn: list[str] = field(default_factory=list)
     dropped: list[str] = field(default_factory=list)
@@ -53,6 +55,7 @@ class Report:
         labels = [
             ("imported Spark", self.imported),
             ("applied", self.applied),
+            ("filed to-do", self.filed_todos),
             ("parked (proposal deleted)", self.parked),
             ("withdrawn to propose again", self.withdrawn),
             ("dropped (item changed or gone)", self.dropped),
@@ -85,6 +88,11 @@ def with_why(content: str, why: str) -> str:
     return f"{first}\n{lead}{indent}Why: {why}\n{rest}"
 
 
+def is_todo(text: str) -> bool:
+    """Whether an Inbox item is a to-do: it starts with `Todo:` or `To-do:`, as in the triage prompt."""
+    return text.lstrip().lower().startswith(("todo:", "to-do:"))
+
+
 def _apply(vault: Path, proposal: Proposal) -> None:
     if proposal.action == "file" and proposal.page and proposal.content:
         content = proposal.content
@@ -108,16 +116,17 @@ def _withdraw(state: State, targets: set[str], report: Report) -> None:
             report.withdrawn.append(page)
 
 
-def _review(vault: Path, state: State, page_text: str | None, report: Report) -> None:
+def _review(vault: Path, state: State, page_text: str | None, report: Report) -> set[str]:
     """Act on the user's ticks and deletions on the Triage page for proposals shown last time.
 
     With no Triage page, nothing is parked. With both boxes of a proposal ticked,
-    neither is done; the page is rewritten unticked.
+    neither is done; the page is rewritten unticked. Returns the ids of those proposals.
     """
     ticks = triage_page.parse(page_text) if page_text is not None else None
     kept = triage_page.kept_whys(page_text) if page_text is not None else None
     items = {item.page: item for item in inbox_items(vault)}
     waiting = []
+    both_ticked = set()
     for proposal in state.proposals:
         if kept is not None and proposal.why:
             edited = _one_line(kept.get(proposal.id, ""), MAX_EDITED_WHY_CHARS)
@@ -140,8 +149,10 @@ def _review(vault: Path, state: State, page_text: str | None, report: Report) ->
         else:
             if answer == "both":
                 report.problems.append(f"both boxes ticked for {proposal.item}; unticked them, tick one")
+                both_ticked.add(proposal.id)
             waiting.append(proposal)
     state.proposals = waiting
+    return both_ticked
 
 
 def _needing_proposals(state: State, items: list[InboxItem], report: Report) -> list[InboxItem]:
@@ -180,6 +191,32 @@ def _propose_for(
     state.parked.update({i.page: i.digest for i in todo if i.page not in proposed})
 
 
+def _file_todos(
+    vault: Path, state: State, items: list[InboxItem], both_ticked: set[str], report: Report
+) -> None:
+    """Apply proposals that file a to-do, without a tick.
+
+    Starting a to-do takes hands-on work anyway, which reviews it; other items get
+    no further look once filed, so the tick stays their review. A to-do the model
+    would discard still waits for one, as does one whose boxes were both ticked.
+    """
+    texts = {item.page: item.text for item in items}
+    waiting = []
+    for proposal in state.proposals:
+        if (
+            proposal.action == "file"
+            and proposal.id not in both_ticked
+            and is_todo(texts.get(proposal.item, ""))
+        ):
+            _apply(vault, proposal)
+            report.filed_todos.append(f"{proposal.item} -> {proposal.page}")
+            if proposal.item in report.proposed:
+                report.proposed.remove(proposal.item)
+        else:
+            waiting.append(proposal)
+    state.proposals = waiting
+
+
 def triage(
     vault: Path,
     model: Model | None,
@@ -199,7 +236,7 @@ def triage(
 
     triage_file = page_path(vault, TRIAGE)
     page_text = triage_file.read_text(encoding="utf-8") if triage_file.exists() else None
-    _review(vault, state, page_text, report)
+    both_ticked = _review(vault, state, page_text, report)
 
     items = inbox_items(vault)
     current = {item.page: item.digest for item in items}
@@ -208,6 +245,7 @@ def triage(
     todo = _needing_proposals(state, items, report)
     if todo and model is not None:
         _propose_for(vault, state, todo, model, fetch, report)
+    _file_todos(vault, state, items, both_ticked, report)
 
     write_if_changed(triage_file, triage_page.render(state.proposals))
     write_if_changed(state_path(vault), state.to_json())

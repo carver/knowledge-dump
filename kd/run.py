@@ -32,6 +32,7 @@ def _cached(model: Model) -> Model:
 def _message(report: Report) -> str:
     counts = [
         (len(report.applied), "applied"),
+        (len(report.filed_todos), "filed"),
         (len(report.proposed), "proposed"),
         (len(report.imported), "imported"),
         (len(report.parked), "parked"),

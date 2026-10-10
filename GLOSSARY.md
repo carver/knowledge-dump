@@ -21,7 +21,7 @@ One Page in the Inbox.
 _Avoid_: Capture, Entry
 
 **Triage**:
-An hourly run in the sandbox: import new Sparks as Items, apply ticked Proposals, propose filing for new Items. Also the name of the Page listing the Proposals.
+An hourly run in the sandbox: import new Sparks as Items, apply ticked Proposals, propose filing for new Items, file to-dos without a tick. Also the name of the Page listing the Proposals.
 
 **Proposal**:
 The agent's suggestion for one Item: file it into a Page (append a block) or discard it. Shown as a checkbox on the Triage page with an id like `kd:3f9a1c`.
@@ -34,7 +34,10 @@ A note of the form "when I face X, consider Y", filed under `Cues/` and tagged `
 
 **Queue item**:
 Something to read or research later. Triage files it on its topic page as a task tagged `#queue`, with the quote and source under it. The `Queue` page lists the open ones from every page.
-_Avoid_: Reading list, Todo
+_Avoid_: Reading list
+
+**To-do**:
+A Queue item from a note starting with `Todo:` or `To-do:`: something to do or change, not just read. It carries a Why, and Triage files it without waiting for a tick.
 
 **Agent branch**:
 `agent`, the only branch the sandbox may push to. A hook on the host merges it into `main`.

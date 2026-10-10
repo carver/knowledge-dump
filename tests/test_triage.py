@@ -5,8 +5,10 @@ from typing import Any
 import pytest
 
 from kd import state as kd_state
+from kd import triage_page
 from kd.propose import ModelError
 from kd.triage import NewPage, triage, with_why
+from kd.vault import digest
 
 
 class FakeModel:
@@ -280,7 +282,7 @@ def test_with_why_nests_under_a_task_and_follows_a_plain_line() -> None:
 
 
 def test_a_kept_why_is_filed_under_the_task(tmp_path: Path) -> None:
-    write(tmp_path, "Inbox/todo", "Todo: install retro")
+    write(tmp_path, "Inbox/todo", "Install retro later")
     triage(tmp_path, WhyModel(), [])
     proposal = only_proposal(tmp_path)
     assert f"  - [x] Keep the why: {proposal.why} `kd:{proposal.id}:why`" in triage_text(tmp_path)
@@ -293,7 +295,7 @@ def test_a_kept_why_is_filed_under_the_task(tmp_path: Path) -> None:
 
 
 def test_an_unticked_why_is_left_out_and_stays_unticked(tmp_path: Path) -> None:
-    write(tmp_path, "Inbox/todo", "Todo: install retro")
+    write(tmp_path, "Inbox/todo", "Install retro later")
     triage(tmp_path, WhyModel(), [])
     proposal_id = only_proposal(tmp_path).id
     untick(tmp_path, f"{proposal_id}:why")
@@ -305,7 +307,7 @@ def test_an_unticked_why_is_left_out_and_stays_unticked(tmp_path: Path) -> None:
 
 
 def test_deleting_the_why_line_drops_the_why(tmp_path: Path) -> None:
-    write(tmp_path, "Inbox/todo", "Todo: install retro")
+    write(tmp_path, "Inbox/todo", "Install retro later")
     triage(tmp_path, WhyModel(), [])
     proposal_id = only_proposal(tmp_path).id
     lines = [
@@ -318,7 +320,7 @@ def test_deleting_the_why_line_drops_the_why(tmp_path: Path) -> None:
 
 
 def test_a_why_edited_on_the_triage_page_is_the_one_filed(tmp_path: Path) -> None:
-    write(tmp_path, "Inbox/todo", "Todo: install retro")
+    write(tmp_path, "Inbox/todo", "Install retro later")
     triage(tmp_path, WhyModel(), [])
     proposal_id = only_proposal(tmp_path).id
     edited = triage_text(tmp_path).replace("the process is wrong", "the process `needs` fixing")
@@ -331,7 +333,7 @@ def test_a_why_edited_on_the_triage_page_is_the_one_filed(tmp_path: Path) -> Non
 
 
 def test_emptying_an_edited_why_keeps_the_old_one(tmp_path: Path) -> None:
-    write(tmp_path, "Inbox/todo", "Todo: install retro")
+    write(tmp_path, "Inbox/todo", "Install retro later")
     triage(tmp_path, WhyModel(), [])
     proposal = only_proposal(tmp_path)
     emptied = triage_text(tmp_path).replace(f"Keep the why: {proposal.why} ", "")
@@ -355,6 +357,93 @@ def test_an_item_whose_source_is_blocked_waits_unparked_for_a_later_run(tmp_path
     assert report.problems == ["holding Inbox/video until its source can be fetched: IpBlocked"]
     assert "Inbox/video" not in kd_state.load(tmp_path).parked
 
-    triage(tmp_path, model, [], fetch=lambda url: "[1:30] the argument")
-    assert sorted(p.item for p in kd_state.load(tmp_path).proposals) == ["Inbox/plain", "Inbox/video"]
+    report = triage(tmp_path, model, [], fetch=lambda url: "[1:30] the argument")
+    assert report.proposed == []
+    assert report.filed_todos == ["Inbox/video -> Cues/Change data capture"]
     assert model.calls == 2
+
+
+def test_a_todo_is_filed_without_waiting_for_a_tick(tmp_path: Path) -> None:
+    write(tmp_path, "Inbox/todo", "Todo: install retro")
+    report = triage(tmp_path, WhyModel(), [])
+    assert report.filed_todos == ["Inbox/todo -> AI coding workflow"]
+    assert report.proposed == [], "filed, so not counted as waiting on the Triage page"
+    assert "  Why: A comment written twice means the process is wrong.\n" in filed_page(tmp_path)
+    assert not (tmp_path / "Inbox/todo.md").exists()
+    assert kd_state.load(tmp_path).proposals == []
+    assert "kd:" not in triage_text(tmp_path)
+
+
+@pytest.mark.parametrize("text", ["To-do: install retro", "\n  todo: install retro"])
+def test_todo_prefix_spellings_count(tmp_path: Path, text: str) -> None:
+    write(tmp_path, "Inbox/todo", text)
+    assert triage(tmp_path, WhyModel(), []).filed_todos == ["Inbox/todo -> AI coding workflow"]
+
+
+def test_a_todo_without_a_why_is_filed_without_one(tmp_path: Path) -> None:
+    write(tmp_path, "Inbox/todo", "Todo: install retro")
+    triage(tmp_path, FakeModel("AI coding workflow"), [])
+    assert filed_page(tmp_path) == "from i1\n"
+
+
+def test_a_todo_the_model_would_discard_waits_for_a_tick(tmp_path: Path) -> None:
+    class DiscardModel:
+        def __call__(self, prompt: str) -> dict[str, Any]:
+            return {"proposals": [{"item": "i1", "action": "discard", "summary": "dup"}]}
+
+    write(tmp_path, "Inbox/todo", "Todo: install retro")
+    report = triage(tmp_path, DiscardModel(), [])
+    assert report.filed_todos == []
+    assert (tmp_path / "Inbox/todo.md").exists()
+    assert f"`kd:{only_proposal(tmp_path).id}`" in triage_text(tmp_path)
+
+
+def test_a_todo_proposal_already_waiting_is_filed_with_its_edited_why(tmp_path: Path) -> None:
+    """A to-do proposal left on the Triage page by an earlier run is filed, with the Why as edited there."""
+    write(tmp_path, "Inbox/todo", "Todo: install retro")
+    proposal = kd_state.Proposal(
+        id="3f9a1c",
+        item="Inbox/todo",
+        digest=digest("Todo: install retro"),
+        action="file",
+        summary="a to-do",
+        page="AI coding workflow",
+        content="- [ ] Install retro #queue\n",
+        why="A comment written twice means the process is wrong.",
+    )
+    (tmp_path / ".kd").mkdir()
+    (tmp_path / ".kd/state.json").write_text(kd_state.State(proposals=[proposal]).to_json())
+    (tmp_path / "Triage.md").write_text(
+        triage_page.render([proposal]).replace("the process is wrong", "the process needs fixing")
+    )
+    report = triage(tmp_path, None, [])
+    assert report.filed_todos == ["Inbox/todo -> AI coding workflow"]
+    assert "  Why: A comment written twice means the process needs fixing.\n" in filed_page(tmp_path)
+
+
+def test_a_waiting_todo_with_both_boxes_ticked_is_not_filed(tmp_path: Path) -> None:
+    write(tmp_path, "Inbox/todo", "Todo: install retro")
+    proposal = kd_state.Proposal(
+        id="3f9a1c",
+        item="Inbox/todo",
+        digest=digest("Todo: install retro"),
+        action="file",
+        summary="a to-do",
+        page="AI coding workflow",
+        content="- [ ] Install retro #queue\n",
+    )
+    (tmp_path / ".kd").mkdir()
+    (tmp_path / ".kd/state.json").write_text(kd_state.State(proposals=[proposal]).to_json())
+    (tmp_path / "Triage.md").write_text(triage_page.render([proposal]))
+    tick(tmp_path, proposal.id)
+    tick(tmp_path, f"{proposal.id}:discard")
+    report = triage(tmp_path, None, [])
+    assert report.filed_todos == [] and report.problems
+    assert only_proposal(tmp_path) == proposal
+
+
+def test_other_items_still_wait_for_a_tick(tmp_path: Path) -> None:
+    write(tmp_path, "Inbox/read", "Read: the retro post")
+    report = triage(tmp_path, WhyModel(), [])
+    assert report.filed_todos == []
+    assert (tmp_path / "Inbox/read.md").exists()
